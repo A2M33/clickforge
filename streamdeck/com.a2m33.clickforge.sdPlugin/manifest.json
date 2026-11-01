@@ -1,0 +1,41 @@
+{
+  "Name": "ClickForge",
+  "Version": "1.0.0.0",
+  "Author": "A2M33",
+  "Description": "Toggle ClickForge and change its click multiplier, with live ON/OFF state on the key.",
+  "Icon": "imgs/plugin",
+  "Category": "ClickForge",
+  "CategoryIcon": "imgs/category",
+  "CodePath": "bin/plugin.js",
+  "Nodejs": { "Version": "20", "Debug": "enabled" },
+  "SDKVersion": 2,
+  "Software": { "MinimumVersion": "6.5" },
+  "OS": [{ "Platform": "windows", "MinimumVersion": "10" }],
+  "UUID": "com.a2m33.clickforge",
+  "Actions": [
+    {
+      "UUID": "com.a2m33.clickforge.toggle",
+      "Name": "Toggle",
+      "Tooltip": "Turn ClickForge on/off. Starts the app if it is closed.",
+      "Icon": "imgs/action-toggle",
+      "Controllers": ["Keypad"],
+      "States": [{ "Image": "imgs/key-toggle", "ShowTitle": false }]
+    },
+    {
+      "UUID": "com.a2m33.clickforge.plus",
+      "Name": "Clicks +1",
+      "Tooltip": "Increase clicks per click.",
+      "Icon": "imgs/action-plus",
+      "Controllers": ["Keypad"],
+      "States": [{ "Image": "imgs/key-plus", "ShowTitle": false }]
+    },
+    {
+      "UUID": "com.a2m33.clickforge.minus",
+      "Name": "Clicks -1",
+      "Tooltip": "Decrease clicks per click.",
+      "Icon": "imgs/action-minus",
+      "Controllers": ["Keypad"],
+      "States": [{ "Image": "imgs/key-minus", "ShowTitle": false }]
+    }
+  ]
+}

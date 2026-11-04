@@ -147,8 +147,10 @@ class ClickMultiplier:
 
     BUTTONS = {"left": {"left"}, "right": {"right"}, "both": {"left", "right"}}
 
-    def __init__(self, cfg, click, is_own_window=lambda x, y: False, sleep=time.sleep):
-        self.enabled = False
+    def __init__(self, cfg, click, is_own_window=lambda x, y: False, cursor=lambda: (0, 0),
+                 sleep=time.sleep):
+        self._enabled = False
+        self._session = 0  # goes up at every switch-off; older work is dropped
         self.multiplier = cfg["multiplier"]
         self.delay_ms = cfg["delay_ms"]
         self.buttons = cfg["buttons"]
@@ -156,11 +158,36 @@ class ClickMultiplier:
         self.generated = 0
         self._click = click
         self._is_own_window = is_own_window
+        self._cursor = cursor
         self._sleep = sleep
         self._jobs = queue.Queue(maxsize=64)
+        self._closing = False
+        self._thread = None
+
+    @property
+    def enabled(self):
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, on):
+        if self._enabled and not on:
+            self._session += 1
+        self._enabled = on
 
     def start_worker(self):
-        threading.Thread(target=self._worker, daemon=True).start()
+        self._thread = threading.Thread(target=self._worker, daemon=True)
+        self._thread.start()
+
+    def stop_worker(self):
+        """Stop clicking now and wait for the worker, which may be mid-burst."""
+        self.enabled = False
+        self._closing = True
+        try:
+            self._jobs.put_nowait(None)  # wakes the worker
+        except queue.Full:
+            pass  # it's awake: with `enabled` off it drains the queue and sees `_closing`
+        if self._thread:
+            self._thread.join(1.0)
 
     def on_click(self, x, y, button, pressed):
         # Act on release so the user's original click completes untouched.
@@ -171,20 +198,28 @@ class ClickMultiplier:
         self.real_clicks += 1
         if self.multiplier > 1:
             try:
-                self._jobs.put_nowait(button)
+                self._jobs.put_nowait((button, self._session))
             except queue.Full:
                 pass
 
     def _worker(self):
-        while True:
-            self._replay(self._jobs.get())
+        while not self._closing:
+            job = self._jobs.get()
+            if job is not None:
+                self._replay(*job)
 
-    def _replay(self, button):
+    def _replay(self, button, session):
         for _ in range(self.multiplier - 1):
-            if not self.enabled:
-                break
             self._sleep(max(self.delay_ms, 1) / 1000)
-            self._click(button)
+            if session != self._session:  # switched off, even if it's back on by now
+                return
+            # A long burst can outlast the user reaching for our OFF button or a slider.
+            if self._is_own_window(*self._cursor()):
+                return
+            try:
+                self._click(button)
+            except Exception:  # the worker must outlive one failed click, or ON stops working
+                return
             self.generated += 1
 
 

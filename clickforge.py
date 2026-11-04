@@ -62,7 +62,7 @@ class ClickEngine(ClickMultiplier):
     def __init__(self, cfg, hotkeys=None):
         self._mouse = mouse.Controller()
         super().__init__(cfg, lambda button: self._mouse.click(mouse.Button[button]),
-                         is_own_window=self._is_own_window)
+                         is_own_window=self._is_own_window, cursor=lambda: self._mouse.position)
         self.hotkeys = hotkeys
         self.own_hwnd = None
         self.start_worker()
@@ -88,6 +88,7 @@ class ClickEngine(ClickMultiplier):
 
     def stop(self):
         self._listener.stop()
+        self.stop_worker()
 
 
 def mod_is_down(mod):

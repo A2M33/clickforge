@@ -1,0 +1,25 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: pip install pytest
+      - run: python -m pytest -q
+      - run: python -m py_compile clickforge.py clickforge_core.py
+      - run: node --check streamdeck/com.a2m33.clickforge.sdPlugin/bin/plugin.js
+      - run: node --test tests/plugin_logic.test.js

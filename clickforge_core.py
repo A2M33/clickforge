@@ -105,10 +105,17 @@ def keep_damaged_copy(path):
 
 
 def save_config(cfg, path=None):
+    """Replace the file in one step and report success. A crash can't leave half a file."""
     path = path or config_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+    tmp = f"{path}.tmp"
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+        os.replace(tmp, path)
+    except OSError:  # a read-only folder, or a scanner holding the file: settings are not worth
+        return False  # a crash, and a failure here used to stop the window from closing at all
+    return True
 
 
 def vk_name(vk):

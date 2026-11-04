@@ -1,5 +1,6 @@
 import pytest
 
+import clickforge_core
 from clickforge_core import DEFAULTS, load_config, sanitize_config, save_config
 
 
@@ -70,3 +71,22 @@ def test_a_damaged_file_is_kept_for_the_user(tmp_path):
     path.write_text("{not json", encoding="utf-8")
     load_config(str(path))
     assert (tmp_path / "config.json.bad").read_text(encoding="utf-8") == "{not json"
+
+
+def test_a_crash_while_saving_leaves_the_old_file_whole(tmp_path, monkeypatch):
+    path = str(tmp_path / "config.json")
+    assert save_config({**DEFAULTS, "multiplier": 5}, path) is True
+
+    def boom(_src, _dst):
+        raise OSError("power cut")
+
+    monkeypatch.setattr(clickforge_core.os, "replace", boom)
+    assert save_config({**DEFAULTS, "multiplier": 6}, path) is False
+    monkeypatch.undo()
+    assert load_config(path)["multiplier"] == 5
+
+
+def test_an_unwritable_folder_is_reported_not_raised(tmp_path):
+    blocker = tmp_path / "file"
+    blocker.write_text("", encoding="utf-8")
+    assert save_config(DEFAULTS, str(blocker / "sub" / "config.json")) is False

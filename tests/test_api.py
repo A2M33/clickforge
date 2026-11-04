@@ -99,3 +99,26 @@ def test_a_stuck_ui_still_answers_before_the_plugin_gives_up():
     api.stop()
     assert status == 200
     assert elapsed < 0.8  # past the plugin's timeout it took the app for closed and started another
+
+
+def test_a_rebound_domain_is_refused(server):
+    app, port = server
+    evil = {"X-ClickForge": "1", "Host": f"evil.example:{port}"}
+    assert request(port, "POST", "/toggle", evil)[0] == 403  # used to switch the clicker on
+    assert app.enabled is False
+    assert request(port, "GET", "/state", {"Host": "evil.example"})[0] == 403
+
+
+def test_the_names_the_plugin_uses_are_fine(server):
+    _, port = server
+    assert request(port, "GET", "/state", {"Host": f"localhost:{port}"})[0] == 200
+    assert request(port, "GET", "/state", {"Host": f"127.0.0.1:{port}"})[0] == 200
+
+
+def test_stop_frees_the_port():
+    app = App()
+    port = free_port()
+    ApiServer({}, app.state, lambda fn: fn(), port=port).stop()
+    again = ApiServer({}, app.state, lambda fn: fn(), port=port)
+    assert again.httpd is not None
+    again.stop()

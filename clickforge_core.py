@@ -355,10 +355,15 @@ class ApiServer:
     """Localhost-only HTTP API: GET /state, POST /toggle, /multiplier/up, /multiplier/down.
 
     POSTs must carry an X-ClickForge header; browsers can't add one cross-origin without a
-    CORS preflight we never answer, so web pages cannot toggle the clicker.
+    CORS preflight we never answer, so web pages cannot toggle the clicker. The Host check
+    closes the way around that: a site that points its own domain at 127.0.0.1 is same-origin
+    with us as far as the browser knows, but its requests name that domain as the Host.
     """
 
     def __init__(self, routes, get_state, run_on_ui, port=API_PORT):
+        def host_ok(host):
+            return host in (f"127.0.0.1:{port}", f"localhost:{port}")
+
         class Handler(BaseHTTPRequestHandler):
             def _reply(self, code, body):
                 data = json.dumps(body).encode()
@@ -369,12 +374,17 @@ class ApiServer:
                 self.wfile.write(data)
 
             def do_GET(self):
-                if self.path == "/state":
+                if not host_ok(self.headers.get("Host")):
+                    self._reply(403, {"error": "forbidden"})
+                elif self.path == "/state":
                     self._reply(200, get_state())
                 else:
                     self._reply(404, {"error": "not found"})
 
             def do_POST(self):
+                if not host_ok(self.headers.get("Host")):
+                    self._reply(403, {"error": "forbidden"})
+                    return
                 action = routes.get(self.path)
                 if action is None or self.headers.get("X-ClickForge") != "1":
                     self._reply(404, {"error": "not found"})
@@ -399,8 +409,9 @@ class ApiServer:
         except OSError:  # port busy (e.g. a second instance): run without the API
             self.httpd = None
             return
-        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        threading.Thread(target=self.httpd.serve_forever, args=(0.1,), daemon=True).start()
 
     def stop(self):
         if self.httpd:
             self.httpd.shutdown()
+            self.httpd.server_close()

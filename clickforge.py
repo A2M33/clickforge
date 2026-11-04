@@ -11,8 +11,8 @@ import customtkinter as ctk
 from pynput import keyboard, mouse
 
 from clickforge_core import (APP_NAME, ApiServer, ClickMultiplier, HotkeyState, LockLed, blend,
-                             claim_single_instance, fit_scale, format_combo, load_config, mouse_name, run_pending, save_config,
-                             vk_name)
+                             claim_single_instance, fit_scale, format_combo, load_config, mouse_name, run_all, run_pending,
+                             save_config, vk_name)
 
 # Windows low-level hook flags: set on events produced by SendInput (our own clicks).
 LLMHF_INJECTED = 0x01
@@ -458,11 +458,13 @@ class App(ctk.CTk):
         self.after(33, self._tick)
 
     def _on_close(self):
-        save_config(self.cfg)
-        self.led.restore()
-        self.api.stop()
-        self.engine.stop()
-        self.hotkeys.stop()
+        run_all([
+            self.engine.stop,  # first: a running burst must not outlive the window
+            self.hotkeys.stop,
+            lambda: save_config(self.cfg),
+            self.led.restore,
+            self.api.stop,
+        ])
         self.destroy()
 
 

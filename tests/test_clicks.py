@@ -2,7 +2,7 @@ import queue
 import threading
 import time
 
-from clickforge_core import ClickMultiplier, run_pending
+from clickforge_core import ClickMultiplier, run_all, run_pending
 
 CFG = {"multiplier": 4, "delay_ms": 10, "buttons": "left"}
 
@@ -194,3 +194,13 @@ def test_one_failing_ui_job_does_not_stop_the_others():
     jobs.put(lambda: ran.append(2))
     run_pending(jobs)  # the exception used to end the UI loop, and with it every hotkey
     assert ran == [1, 2]
+
+
+def test_shutdown_finishes_after_a_failing_step():
+    ran = []
+
+    def broken():
+        raise OSError("LED busy")
+
+    run_all([lambda: ran.append("hooks"), broken, lambda: ran.append("server")])
+    assert ran == ["hooks", "server"]  # one failure used to leave the window open and hooks on

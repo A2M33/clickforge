@@ -361,6 +361,15 @@ def claim_single_instance(name=f"Local\\{APP_NAME}"):
     return lambda: kernel32.CloseHandle(handle)
 
 
+def run_all(steps):
+    """Run every step even if one fails. For shutdown, where stopping halfway leaves hooks behind."""
+    for step in steps:
+        try:
+            step()
+        except Exception:
+            traceback.print_exc()
+
+
 def run_pending(jobs):
     """Run what the other threads queued for the UI thread. One failure can't stop the rest."""
     while True:

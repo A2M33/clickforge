@@ -16,7 +16,7 @@ ClickForge turns one mouse click into many. Set it to 12, click once, and Window
 - **Stream Deck plugin** with live keys (below).
 - **Sound cue** on toggle, and a live counter of real and generated clicks.
 
-Clicks on the ClickForge window itself stay single, so the ON button doesn't fire twelve times.
+Clicks on the ClickForge window itself stay single, so the ON button doesn't fire twelve times. A burst also stops when your cursor reaches the window, so you can get to the OFF button during a long one.
 
 ## Stream Deck
 
@@ -28,7 +28,7 @@ The plugin adds three actions: **Toggle**, **Clicks +1** and **Clicks −1**. Th
 
 ## Install
 
-**App:** download `ClickForge.exe` from [Releases](../../releases) and run it. Settings live in `%APPDATA%\ClickForge\config.json`.
+**App:** download `ClickForge.exe` from [Releases](../../releases) and run it. Settings live in `%APPDATA%\ClickForge\config.json`. If you start it twice, the second start brings the open window forward.
 
 **Stream Deck plugin:** download `com.a2m33.clickforge.streamDeckPlugin` from Releases and double-click it. Then drag the ClickForge actions onto your keys. Run `ClickForge.exe` once first so the START key knows where the app lives.
 
@@ -45,12 +45,20 @@ python clickforge.py
 
 For the plugin, you need Node.js. `streamdeck\install.ps1` installs its one dependency (`ws`), copies it into Stream Deck and restarts the Stream Deck app.
 
+`clickforge_core.py` holds the logic with no hooks or UI, so the tests run on any OS:
+
+```bat
+pip install pytest
+python -m pytest
+node --test tests/plugin_logic.test.js
+```
+
 ## How it works
 
 - A low-level Windows mouse hook (`pynput`) watches real clicks. On release, a worker thread sends the extra clicks with `SendInput`.
 - Windows marks synthetic input with the `LLMHF_INJECTED` flag. The hook drops flagged events, so generated clicks never trigger more clicks.
 - The UI uses `customtkinter`. Hook threads pass work to the Tk thread through a queue, since Tk isn't thread-safe.
-- The app serves a small HTTP API on `127.0.0.1:47811` (`GET /state`, `POST /toggle`, `POST /multiplier/up|down`). POST requests need an `X-ClickForge` header. A browser can't add that header cross-origin without a CORS preflight, and the app never answers one, so a web page can't toggle the clicker.
+- The app serves a small HTTP API on `127.0.0.1:47811` (`GET /state`, `POST /toggle`, `POST /multiplier/up|down`). POST requests need an `X-ClickForge` header. A browser can't add that header cross-origin without a CORS preflight, and the app never answers one, so a web page can't toggle the clicker. The app also refuses any `Host` other than `127.0.0.1` and `localhost`, which stops a site from pointing its own domain at your machine to get around that.
 - The Stream Deck plugin (Node.js) polls that API and draws each key as an SVG.
 
 ## Notes

@@ -1,4 +1,4 @@
-// Run with: node --test tests/
+// Run with: node --test tests/plugin_logic.test.js
 const assert = require("node:assert");
 const http = require("node:http");
 const { test } = require("node:test");

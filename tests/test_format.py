@@ -1,4 +1,6 @@
-from clickforge_core import blend, format_combo, mouse_name, vk_name
+import pytest
+
+from clickforge_core import blend, fit_scale, format_combo, mouse_name, vk_name
 
 
 class TestMouseName:
@@ -32,3 +34,16 @@ def test_blend():
     assert blend("#000000", "#FFFFFF", 0) == "#000000"
     assert blend("#000000", "#FFFFFF", 1) == "#FFFFFF"
     assert blend("#102030", "#102030", 0.5) == "#102030"
+
+
+class TestFitScale:
+    def test_a_layout_that_fits_stays_full_size(self):
+        assert fit_scale(1000, 1400) == 1.0
+        assert fit_scale(1000, 1000) == 1.0
+
+    def test_a_tall_layout_shrinks_to_fit(self):
+        assert fit_scale(1045, 1032) == pytest.approx(0.9876, abs=0.001)  # 1080p with a taskbar
+        assert fit_scale(1560, 1020) == pytest.approx(0.654, abs=0.001)  # 150% on a 1080p laptop
+
+    def test_it_stops_before_the_text_is_unreadable(self):
+        assert fit_scale(1045, 300) == 0.6

@@ -11,7 +11,7 @@ import customtkinter as ctk
 from pynput import keyboard, mouse
 
 from clickforge_core import (APP_NAME, ApiServer, ClickMultiplier, HotkeyState, LockLed, blend,
-                             claim_single_instance, format_combo, load_config, mouse_name, run_pending, save_config,
+                             claim_single_instance, fit_scale, format_combo, load_config, mouse_name, run_pending, save_config,
                              vk_name)
 
 # Windows low-level hook flags: set on events produced by SendInput (our own clicks).
@@ -19,9 +19,14 @@ LLMHF_INJECTED = 0x01
 LLKHF_INJECTED = 0x10
 GA_ROOT = 2
 SW_RESTORE = 9
+MONITOR_DEFAULTTOPRIMARY = 1
+TITLE_BAR = 40  # room for the window frame, at 100% display scaling
 
 user32 = ctypes.WinDLL("user32")  # our own instance: argtypes set here don't reach pynput
 user32.GetAsyncKeyState.restype = ctypes.c_short
+user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+user32.MonitorFromWindow.restype = wintypes.HMONITOR
+user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.c_void_p]
 user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
 user32.FindWindowW.restype = wintypes.HWND
 user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
@@ -95,6 +100,20 @@ class ClickEngine(ClickMultiplier):
     def stop(self):
         self._listener.stop()
         self.stop_worker()
+
+
+class MONITORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
+                ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+
+
+def work_area(hwnd):
+    """(left, top, right, bottom) of the window's monitor, without the taskbar."""
+    info = MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
+    monitor = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY)
+    user32.GetMonitorInfoW(monitor, ctypes.byref(info))
+    area = info.rcWork
+    return area.left, area.top, area.right, area.bottom
 
 
 def mod_is_down(mod):
@@ -190,6 +209,7 @@ class App(ctk.CTk):
         self._build()
         self.update_idletasks()
         self.engine.own_hwnd = user32.GetAncestor(self.winfo_id(), GA_ROOT)
+        self._fit_to_screen()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._refresh_power()
         if getattr(sys, "frozen", False):  # lets the Stream Deck plugin launch the app
@@ -207,6 +227,25 @@ class App(ctk.CTk):
         return {"enabled": self.engine.enabled, "multiplier": self.engine.multiplier}
 
     # ---------- layout ----------
+    def _fit_to_screen(self):
+        """Shrink the layout on short screens and open in the middle of the work area.
+
+        It's a fixed-size window, so anything past the bottom edge could never be reached.
+        """
+        left, top, right, bottom = work_area(self.engine.own_hwnd)
+        frame = round(TITLE_BAR * self._get_window_scaling())
+        scale = fit_scale(self.winfo_reqheight() + frame, bottom - top)
+        if scale < 1:
+            ctk.set_widget_scaling(scale)
+            # Rescaling pins the window to CTk's 600x500 default; give the size back to the layout.
+            self.wm_minsize(1, 1)
+            self.wm_maxsize(self.winfo_screenwidth(), self.winfo_screenheight())
+            self.wm_geometry("")
+            self.update_idletasks()
+        x = left + max(0, (right - left - self.winfo_reqwidth()) // 2)
+        y = top + max(0, (bottom - top - self.winfo_reqheight() - frame) // 2)
+        self.wm_geometry(f"+{x}+{y}")
+
     def _build(self):
         pad = {"padx": 22}
 

@@ -31,6 +31,7 @@ REPEAT_GAP_SECONDS = 1.5  # Windows repeats a held key sooner than this, even at
 
 PLAIN_UNBINDABLE = {"mouse_left", "mouse_right"}  # need a modifier, or every click would toggle
 
+MIN_UI_SCALE = 0.6  # below this the text stops being readable
 MULTIPLIER_RANGE = (1, 100)
 DELAY_RANGE = (1, 200)
 BUTTON_CHOICES = ("left", "right", "both")
@@ -138,6 +139,11 @@ def format_combo(combo):
     rest = [k for k in combo if k not in MOD_ORDER]
     return " + ".join(p.replace("mouse_", "mouse ").replace("mouse4", "mouse 4")
                       .replace("mouse5", "mouse 5").upper() for p in mods + rest)
+
+
+def fit_scale(needed, available, smallest=MIN_UI_SCALE):
+    """How much to shrink a layout `needed` pixels tall to fit in `available` pixels."""
+    return max(smallest, min(1.0, available / needed))
 
 
 def blend(c1, c2, t):

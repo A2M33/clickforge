@@ -47,3 +47,14 @@ class TestFitScale:
 
     def test_it_stops_before_the_text_is_unreadable(self):
         assert fit_scale(1045, 300) == 0.6
+
+
+def test_punctuation_keys_get_their_real_names():
+    assert format_combo(["ctrl", "vk187"]) == "CTRL + ="  # used to read CTRL + VK187
+    assert format_combo(["vk220"]) == "\\"
+
+
+def test_special_keys_read_as_words():
+    assert format_combo(["page_up"]) == "PAGE UP"
+    assert format_combo(["num5"]) == "NUM5"
+    assert format_combo(["vk255"]) == "VK255"  # no name for it: show the code

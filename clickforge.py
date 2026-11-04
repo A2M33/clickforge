@@ -204,6 +204,7 @@ class App(ctk.CTk):
         self.engine = ClickEngine(self.cfg, self.hotkeys)
         self._save_job = None
         self._phase = 0.0
+        self._shown_counts = None
         self.led = make_led()
 
         self._build()
@@ -425,7 +426,6 @@ class App(ctk.CTk):
 
     def _show_hotkey(self):
         text = format_combo(self.cfg["hotkey"])
-        self.hotkey_text = text
         self.key_box.configure(text=text, text_color=TEXT)
         self.hint.configure(text=f"PRESS  {text}  TO TOGGLE")
         self.rebind_btn.configure(text="REBIND")
@@ -449,8 +449,11 @@ class App(ctk.CTk):
     # ---------- loop ----------
     def _tick(self):
         run_pending(self.ui_queue)
-        self.real_label.configure(text=f"{self.engine.real_clicks:,}")
-        self.gen_label.configure(text=f"{self.engine.generated:,}")
+        counts = (self.engine.real_clicks, self.engine.generated)
+        if counts != self._shown_counts:  # this runs 30 times a second, often over a game
+            self._shown_counts = counts
+            self.real_label.configure(text=f"{counts[0]:,}")
+            self.gen_label.configure(text=f"{counts[1]:,}")
         if self.engine.enabled:  # breathing glow on the power ring
             self._phase += 0.12
             k = (math.sin(self._phase) + 1) / 2

@@ -31,6 +31,10 @@ REPEAT_GAP_SECONDS = 1.5  # Windows repeats a held key sooner than this, even at
 
 PLAIN_UNBINDABLE = {"mouse_left", "mouse_right"}  # need a modifier, or every click would toggle
 
+# Punctuation keys are stored by virtual-key code. These are the US layout's names for them.
+KEY_LABELS = {"vk186": ";", "vk187": "=", "vk188": ",", "vk189": "-", "vk190": ".", "vk191": "/",
+              "vk192": "`", "vk219": "[", "vk220": "\\", "vk221": "]", "vk222": "'"}
+
 MIN_UI_SCALE = 0.6  # below this the text stops being readable
 MULTIPLIER_RANGE = (1, 100)
 DELAY_RANGE = (1, 200)
@@ -134,11 +138,18 @@ def vk_name(vk):
     return f"vk{vk}"
 
 
+def key_label(name):
+    if name in KEY_LABELS:
+        return KEY_LABELS[name]
+    if name in ("mouse4", "mouse5"):
+        return f"MOUSE {name[-1]}"
+    return name.replace("_", " ").upper()
+
+
 def format_combo(combo):
     mods = [m for m in MOD_ORDER if m in combo]
     rest = [k for k in combo if k not in MOD_ORDER]
-    return " + ".join(p.replace("mouse_", "mouse ").replace("mouse4", "mouse 4")
-                      .replace("mouse5", "mouse 5").upper() for p in mods + rest)
+    return " + ".join(key_label(k) for k in mods + rest)
 
 
 def fit_scale(needed, available, smallest=MIN_UI_SCALE):

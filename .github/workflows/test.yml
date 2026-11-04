@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: pip install pytest
+      - run: pip install -r requirements-dev.txt
       - run: python -m pytest -q
       - run: python -m py_compile clickforge.py clickforge_core.py
       - run: node --check streamdeck/com.a2m33.clickforge.sdPlugin/bin/plugin.js

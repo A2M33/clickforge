@@ -85,3 +85,74 @@ def test_plain_left_click_cannot_be_bound():
     rig.keys.mod_down("ctrl")
     assert rig.keys.mouse("mouse_left", True) is True
     assert rig.captured == [["ctrl", "mouse_left"]]
+
+
+class FakeKeyboard:
+    """What Windows says is down, and a clock we can move."""
+
+    def __init__(self):
+        self.down = set()
+        self.t = 0.0
+
+    def is_down(self, mod):
+        return mod in self.down
+
+    def __call__(self):
+        return self.t
+
+
+def test_a_modifier_released_behind_the_lock_screen_is_forgotten():
+    kb = FakeKeyboard()
+    rig = Rig(("win", "f6"), mod_is_down=kb.is_down, clock=kb)
+    kb.down.add("win")
+    rig.keys.mod_down("win")  # Win+L: the release happens on the lock screen, out of our sight
+    kb.down.clear()
+    tap(rig.keys, "f6")
+    assert rig.triggers == 0  # F6 alone used to fire a Win+F6 shortcut
+
+
+def test_a_stuck_modifier_stays_out_of_a_new_shortcut():
+    kb = FakeKeyboard()
+    rig = Rig(mod_is_down=kb.is_down, clock=kb)
+    kb.down.add("ctrl")
+    rig.keys.mod_down("ctrl")  # Ctrl+Alt+Del
+    kb.down.clear()
+    rig.keys.capturing = True
+    tap(rig.keys, "g")
+    assert rig.captured == [["g"]]  # used to save CTRL + G
+
+
+def test_a_stuck_modifier_does_not_make_left_click_bindable():
+    kb = FakeKeyboard()
+    rig = Rig(mod_is_down=kb.is_down, clock=kb)
+    rig.keys.mod_down("ctrl")
+    rig.keys.capturing = True
+    assert rig.keys.mouse("mouse_left", True) is False
+
+
+def test_a_real_held_modifier_still_counts():
+    kb = FakeKeyboard()
+    rig = Rig(("ctrl", "g"), mod_is_down=kb.is_down, clock=kb)
+    kb.down.add("ctrl")
+    rig.keys.mod_down("ctrl")
+    tap(rig.keys, "g")
+    assert rig.triggers == 1
+
+
+def test_a_key_whose_release_we_missed_works_the_next_time():
+    kb = FakeKeyboard()
+    rig = Rig(mod_is_down=kb.is_down, clock=kb)
+    rig.keys.key_down("f6")  # released on the lock screen: no key_up reaches us
+    assert rig.triggers == 1
+    kb.t = 60.0
+    rig.keys.key_down("f6")
+    assert rig.triggers == 2  # used to read as auto-repeat and be ignored
+
+
+def test_slow_auto_repeat_is_still_auto_repeat():
+    kb = FakeKeyboard()
+    rig = Rig(mod_is_down=kb.is_down, clock=kb)
+    for _ in range(5):
+        rig.keys.key_down("f6")
+        kb.t += 1.0  # the slowest repeat delay Windows offers
+    assert rig.triggers == 1

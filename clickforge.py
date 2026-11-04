@@ -18,7 +18,8 @@ LLMHF_INJECTED = 0x01
 LLKHF_INJECTED = 0x10
 GA_ROOT = 2
 
-user32 = ctypes.windll.user32
+user32 = ctypes.WinDLL("user32")  # our own instance: argtypes set here don't reach pynput
+user32.GetAsyncKeyState.restype = ctypes.c_short
 user32.WindowFromPoint.argtypes = [wintypes.POINT]
 user32.WindowFromPoint.restype = wintypes.HWND
 user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
@@ -35,6 +36,8 @@ ACCENT_DIM = "#1C5A12"
 TEXT = "#EDEDED"
 MUTED = "#7A7A7A"
 OFF = "#FF3B3B"
+
+MODIFIER_VKS = {"ctrl": (0x11,), "alt": (0x12,), "shift": (0x10,), "win": (0x5B, 0x5C)}
 
 MODIFIERS = {
     keyboard.Key.ctrl: "ctrl", keyboard.Key.ctrl_l: "ctrl", keyboard.Key.ctrl_r: "ctrl",
@@ -87,11 +90,15 @@ class ClickEngine(ClickMultiplier):
         self._listener.stop()
 
 
+def mod_is_down(mod):
+    return any(user32.GetAsyncKeyState(vk) & 0x8000 for vk in MODIFIER_VKS[mod])
+
+
 class HotkeyManager(HotkeyState):
     """Feeds HotkeyState from a low-level keyboard hook."""
 
     def __init__(self, combo, on_trigger, on_captured):
-        super().__init__(combo, on_trigger, on_captured)
+        super().__init__(combo, on_trigger, on_captured, mod_is_down=mod_is_down)
         self._listener = keyboard.Listener(
             on_press=self._press, on_release=self._release,
             win32_event_filter=lambda msg, data: not (data.flags & LLKHF_INJECTED))

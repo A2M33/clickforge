@@ -23,6 +23,8 @@ MOUSE_MSGS = {
     0x207: ("mouse_middle", True), 0x208: ("mouse_middle", False),
     0x20B: ("mouse_x", True), 0x20C: ("mouse_x", False),
 }
+REPEAT_GAP_SECONDS = 1.5  # Windows repeats a held key sooner than this, even at its slowest
+
 PLAIN_UNBINDABLE = {"mouse_left", "mouse_right"}  # need a modifier, or every click would toggle
 
 MULTIPLIER_RANGE = (1, 100)
@@ -189,14 +191,22 @@ class ClickMultiplier:
 class HotkeyState:
     """Global toggle shortcut, rebindable at runtime (modifiers + one key)."""
 
-    def __init__(self, combo, on_trigger, on_captured):
+    def __init__(self, combo, on_trigger, on_captured, mod_is_down=lambda mod: True,
+                 clock=time.monotonic):
         self.combo = frozenset(combo)
         self.capturing = False
         self._on_trigger = on_trigger
         self._on_captured = on_captured
+        self._mod_is_down = mod_is_down  # asks Windows, since the hook can miss releases
+        self._clock = clock
         self._mods = set()
-        self._held = set()
+        self._held = {}  # key name -> when we last saw it go down
         self._mouse_held = set()  # pressed buttons we consumed; their release is consumed too
+
+    def _forget_released_mods(self):
+        # Keys released on the lock screen or Ctrl+Alt+Del never reach our hook, so Win+L
+        # would otherwise leave "win" held for ever and put it in the next shortcut.
+        self._mods = {mod for mod in self._mods if self._mod_is_down(mod)}
 
     def mod_down(self, mod):
         self._mods.add(mod)
@@ -205,9 +215,13 @@ class HotkeyState:
         self._mods.discard(mod)
 
     def key_down(self, name):
-        if name is None or name in self._held:  # ignore auto-repeat while held
+        if name is None:
             return
-        self._held.add(name)
+        now = self._clock()
+        last, self._held[name] = self._held.get(name), now
+        if last is not None and now - last < REPEAT_GAP_SECONDS:  # auto-repeat while held
+            return
+        self._forget_released_mods()
         if self.capturing:
             self.capturing = False
             if name == "esc":
@@ -220,7 +234,7 @@ class HotkeyState:
             self._on_trigger()
 
     def key_up(self, name):
-        self._held.discard(name)
+        self._held.pop(name, None)
 
     def _matches(self, name):
         # Required modifiers must be held, extra ones are fine (e.g. Shift held to sprint in a game).
@@ -234,6 +248,7 @@ class HotkeyState:
                 self._mouse_held.discard(name)
                 return True
             return False
+        self._forget_released_mods()
         combo = frozenset(self._mods | {name})
         bindable = name not in PLAIN_UNBINDABLE or self._mods
         if self.capturing:

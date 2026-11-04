@@ -1,22 +1,17 @@
 """ClickForge - turn one real mouse click into many."""
 import ctypes
-import json
 import math
-import os
 import queue
 import sys
 import threading
-import time
 import winsound
 from ctypes import wintypes
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import customtkinter as ctk
 from pynput import keyboard, mouse
 
-APP_NAME = "ClickForge"
-CONFIG_PATH = os.path.join(os.environ.get("APPDATA", "."), APP_NAME, "config.json")
-API_PORT = 47811  # localhost control API used by the Stream Deck plugin
+from clickforge_core import (APP_NAME, ApiServer, ClickMultiplier, HotkeyState, LockLed, blend,
+                             format_combo, load_config, mouse_name, save_config, vk_name)
 
 # Windows low-level hook flags: set on events produced by SendInput (our own clicks).
 LLMHF_INJECTED = 0x01
@@ -41,9 +36,6 @@ TEXT = "#EDEDED"
 MUTED = "#7A7A7A"
 OFF = "#FF3B3B"
 
-DEFAULTS = {"multiplier": 12, "delay_ms": 10, "buttons": "left", "hotkey": ["f6"], "sound": True,
-            "led": "scroll"}
-
 MODIFIERS = {
     keyboard.Key.ctrl: "ctrl", keyboard.Key.ctrl_l: "ctrl", keyboard.Key.ctrl_r: "ctrl",
     keyboard.Key.shift: "shift", keyboard.Key.shift_l: "shift", keyboard.Key.shift_r: "shift",
@@ -51,91 +43,26 @@ MODIFIERS = {
     keyboard.Key.alt_gr: "alt",
     keyboard.Key.cmd: "win", keyboard.Key.cmd_l: "win", keyboard.Key.cmd_r: "win",
 }
-MOD_ORDER = ["ctrl", "alt", "shift", "win"]
-
-# Low-level mouse messages -> (button name, is_press). XBUTTON carries 1/2 in mouseData's high word.
-MOUSE_MSGS = {
-    0x201: ("mouse_left", True), 0x202: ("mouse_left", False),
-    0x204: ("mouse_right", True), 0x205: ("mouse_right", False),
-    0x207: ("mouse_middle", True), 0x208: ("mouse_middle", False),
-    0x20B: ("mouse_x", True), 0x20C: ("mouse_x", False),
-}
-PLAIN_UNBINDABLE = {"mouse_left", "mouse_right"}  # need a modifier, or every click would toggle
-
-
-def mouse_name(msg, data):
-    entry = MOUSE_MSGS.get(msg)
-    if entry is None:
-        return None, False
-    name, pressed = entry
-    if name == "mouse_x":
-        name = "mouse4" if (data.mouseData >> 16) == 1 else "mouse5"
-    return name, pressed
-
-
-def load_config():
-    cfg = dict(DEFAULTS)
-    try:
-        with open(CONFIG_PATH, encoding="utf-8") as f:
-            cfg.update(json.load(f))
-    except (OSError, ValueError):
-        pass
-    return cfg
-
-
-def save_config(cfg):
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
-
 
 def key_name(key):
     if isinstance(key, keyboard.Key):
         return key.name
     vk = getattr(key, "vk", None)
     if vk is not None:
-        if 0x30 <= vk <= 0x39 or 0x41 <= vk <= 0x5A:
-            return chr(vk).lower()
-        if 0x60 <= vk <= 0x69:
-            return f"num{vk - 0x60}"
-        return f"vk{vk}"
+        return vk_name(vk)
     return key.char.lower() if key.char else None
 
 
-def format_combo(combo):
-    mods = [m for m in MOD_ORDER if m in combo]
-    rest = [k for k in combo if k not in MOD_ORDER]
-    return " + ".join(p.replace("mouse_", "mouse ").replace("mouse4", "mouse 4")
-                      .replace("mouse5", "mouse 5").upper() for p in mods + rest)
-
-
-def blend(c1, c2, t):
-    a = [int(c1[i:i + 2], 16) for i in (1, 3, 5)]
-    b = [int(c2[i:i + 2], 16) for i in (1, 3, 5)]
-    return "#" + "".join(f"{round(x + (y - x) * t):02X}" for x, y in zip(a, b))
-
-
-class ClickEngine:
-    """Watches real clicks and replays each one (multiplier - 1) extra times."""
-
-    BUTTONS = {
-        "left": {mouse.Button.left},
-        "right": {mouse.Button.right},
-        "both": {mouse.Button.left, mouse.Button.right},
-    }
+class ClickEngine(ClickMultiplier):
+    """Connects ClickMultiplier to the real mouse: a low-level hook in, SendInput out."""
 
     def __init__(self, cfg, hotkeys=None):
-        self.enabled = False
-        self.hotkeys = hotkeys
-        self.multiplier = cfg["multiplier"]
-        self.delay_ms = cfg["delay_ms"]
-        self.buttons = cfg["buttons"]
-        self.own_hwnd = None
-        self.real_clicks = 0
-        self.generated = 0
-        self._jobs = queue.Queue(maxsize=64)
         self._mouse = mouse.Controller()
-        threading.Thread(target=self._worker, daemon=True).start()
+        super().__init__(cfg, lambda button: self._mouse.click(mouse.Button[button]),
+                         is_own_window=self._is_own_window)
+        self.hotkeys = hotkeys
+        self.own_hwnd = None
+        self.start_worker()
         self._listener = mouse.Listener(on_click=self._on_click, win32_event_filter=self._filter)
         self._listener.start()
 
@@ -143,7 +70,7 @@ class ClickEngine:
         # Returning False hides the event from on_click; our own clicks must never re-trigger.
         if data.flags & LLMHF_INJECTED:
             return False
-        name, pressed = mouse_name(msg, data)
+        name, pressed = mouse_name(msg, data.mouseData)
         if name and self.hotkeys and self.hotkeys.mouse(name, pressed):
             # A bound mouse button is swallowed system-wide (no browser "Back" on mouse 4).
             self._listener.suppress_event()
@@ -154,43 +81,17 @@ class ClickEngine:
         return bool(hwnd) and user32.GetAncestor(hwnd, GA_ROOT) == self.own_hwnd
 
     def _on_click(self, x, y, button, pressed):
-        # Act on release so the user's original click completes untouched.
-        if pressed or not self.enabled or button not in self.BUTTONS[self.buttons]:
-            return
-        if self._is_own_window(x, y):
-            return
-        self.real_clicks += 1
-        if self.multiplier > 1:
-            try:
-                self._jobs.put_nowait(button)
-            except queue.Full:
-                pass
-
-    def _worker(self):
-        while True:
-            button = self._jobs.get()
-            for _ in range(self.multiplier - 1):
-                if not self.enabled:
-                    break
-                time.sleep(max(self.delay_ms, 1) / 1000)
-                self._mouse.click(button)
-                self.generated += 1
+        self.on_click(x, y, button.name, pressed)
 
     def stop(self):
         self._listener.stop()
 
 
-class HotkeyManager:
-    """Global toggle shortcut, rebindable at runtime (modifiers + one key)."""
+class HotkeyManager(HotkeyState):
+    """Feeds HotkeyState from a low-level keyboard hook."""
 
     def __init__(self, combo, on_trigger, on_captured):
-        self.combo = frozenset(combo)
-        self.capturing = False
-        self._on_trigger = on_trigger
-        self._on_captured = on_captured
-        self._mods = set()
-        self._held = set()
-        self._mouse_held = set()  # pressed buttons we consumed; their release is consumed too
+        super().__init__(combo, on_trigger, on_captured)
         self._listener = keyboard.Listener(
             on_press=self._press, on_release=self._release,
             win32_event_filter=lambda msg, data: not (data.flags & LLKHF_INJECTED))
@@ -199,56 +100,16 @@ class HotkeyManager:
     def _press(self, key):
         mod = MODIFIERS.get(key)
         if mod:
-            self._mods.add(mod)
-            return
-        name = key_name(key)
-        if name is None or name in self._held:  # ignore auto-repeat while held
-            return
-        self._held.add(name)
-        if self.capturing:
-            self.capturing = False
-            if name == "esc":
-                self._on_captured(None)
-            else:
-                self.combo = frozenset(self._mods | {name})
-                self._on_captured(sorted(self.combo))
-            return
-        if self._matches(name):
-            self._on_trigger()
-
-    def _matches(self, name):
-        # Required modifiers must be held, extra ones are fine (e.g. Shift held to sprint in a game).
-        trigger = self.combo - set(MOD_ORDER)
-        return trigger == {name} and (self.combo - trigger) <= self._mods
-
-    def mouse(self, name, pressed):
-        """Called from the mouse hook. Returns True when the event belongs to the shortcut."""
-        if not pressed:
-            if name in self._mouse_held:
-                self._mouse_held.discard(name)
-                return True
-            return False
-        combo = frozenset(self._mods | {name})
-        bindable = name not in PLAIN_UNBINDABLE or self._mods
-        if self.capturing:
-            if not bindable:
-                return False
-            self.capturing = False
-            self.combo = combo
-            self._on_captured(sorted(combo))
-        elif self._matches(name):
-            self._on_trigger()
+            self.mod_down(mod)
         else:
-            return False
-        self._mouse_held.add(name)
-        return True
+            self.key_down(key_name(key))
 
     def _release(self, key):
         mod = MODIFIERS.get(key)
         if mod:
-            self._mods.discard(mod)
+            self.mod_up(mod)
         else:
-            self._held.discard(key_name(key))
+            self.key_up(key_name(key))
 
     def stop(self):
         self._listener.stop()
@@ -285,92 +146,13 @@ class Segmented(ctk.CTkFrame):
                         text_color=BG if active else MUTED)
 
 
-class LockLed:
-    """Mirrors the on/off state on a keyboard lock LED (Scroll or Num Lock)."""
-
-    KEYS = {"scroll": (0x91, keyboard.Key.scroll_lock), "num": (0x90, keyboard.Key.num_lock)}
-
-    def __init__(self):
-        self._kb = keyboard.Controller()
-        self.mode = "off"
-        self._original = None  # lock state before we took over, restored on exit
-
-    @staticmethod
-    def _state(vk):
-        return bool(user32.GetKeyState(vk) & 1)
-
-    def use(self, mode):
-        self.mode = mode
-        if mode in self.KEYS:
-            self._original = self._state(self.KEYS[mode][0])
-
-    def show(self, on):
-        if self.mode in self.KEYS:
-            self._set(on)
-
-    def restore(self):
-        if self.mode in self.KEYS and self._original is not None:
-            self._set(self._original)
-            self._original = None
-
-    def _set(self, on):
-        vk, key = self.KEYS[self.mode]
-        if self._state(vk) != on:
-            self._kb.tap(key)  # injected, so our own hotkey hook ignores it
+LOCK_KEYS = {"scroll": (0x91, keyboard.Key.scroll_lock), "num": (0x90, keyboard.Key.num_lock)}
 
 
-class ApiServer:
-    """Localhost-only HTTP API: GET /state, POST /toggle, /multiplier/up, /multiplier/down.
-
-    POSTs must carry an X-ClickForge header; browsers can't add one cross-origin without a
-    CORS preflight we never answer, so web pages cannot toggle the clicker.
-    """
-
-    def __init__(self, app):
-        routes = {
-            "/toggle": app.toggle,
-            "/multiplier/up": lambda: app._set_multiplier(app.engine.multiplier + 1),
-            "/multiplier/down": lambda: app._set_multiplier(app.engine.multiplier - 1),
-        }
-
-        class Handler(BaseHTTPRequestHandler):
-            def _reply(self, code, body):
-                data = json.dumps(body).encode()
-                self.send_response(code)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(data)))
-                self.end_headers()
-                self.wfile.write(data)
-
-            def do_GET(self):
-                if self.path == "/state":
-                    self._reply(200, app.api_state())
-                else:
-                    self._reply(404, {"error": "not found"})
-
-            def do_POST(self):
-                action = routes.get(self.path)
-                if action is None or self.headers.get("X-ClickForge") != "1":
-                    self._reply(404, {"error": "not found"})
-                    return
-                done = threading.Event()
-                app.ui_queue.put(lambda: (action(), done.set()))  # Tk state changes on the Tk thread
-                done.wait(1.0)
-                self._reply(200, app.api_state())
-
-            def log_message(self, *args):
-                pass
-
-        try:
-            self.httpd = ThreadingHTTPServer(("127.0.0.1", API_PORT), Handler)
-        except OSError:  # port busy (e.g. a second instance): run without the API
-            self.httpd = None
-            return
-        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
-
-    def stop(self):
-        if self.httpd:
-            self.httpd.shutdown()
+def make_led():
+    controller = keyboard.Controller()
+    return LockLed(read_state=lambda mode: bool(user32.GetKeyState(LOCK_KEYS[mode][0]) & 1),
+                   tap=lambda mode: controller.tap(LOCK_KEYS[mode][1]))
 
 
 class App(ctk.CTk):
@@ -389,7 +171,7 @@ class App(ctk.CTk):
         self.engine = ClickEngine(self.cfg, self.hotkeys)
         self._save_job = None
         self._phase = 0.0
-        self.led = LockLed()
+        self.led = make_led()
 
         self._build()
         self.update_idletasks()
@@ -398,7 +180,13 @@ class App(ctk.CTk):
         self._refresh_power()
         if getattr(sys, "frozen", False):  # lets the Stream Deck plugin launch the app
             self._queue_save("exe_path", sys.executable)
-        self.api = ApiServer(self)
+        self.api = ApiServer(
+            {
+                "/toggle": self.toggle,
+                "/multiplier/up": lambda: self._set_multiplier(self.engine.multiplier + 1),
+                "/multiplier/down": lambda: self._set_multiplier(self.engine.multiplier - 1),
+            },
+            self.api_state, self.ui_queue.put)
         self._tick()
 
     def api_state(self):

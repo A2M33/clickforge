@@ -3,6 +3,7 @@ const WebSocket = require("ws");
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
+const { appIsDown, createPoller } = require("./logic");
 
 const API = "http://127.0.0.1:47811";
 const CONFIG = path.join(process.env.APPDATA || "", "ClickForge", "config.json");
@@ -25,8 +26,14 @@ const send = (msg) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify
 
 ws.on("open", () => send({ event: args.registerEvent, uuid: args.pluginUUID }));
 ws.on("close", () => process.exit(0));
+ws.on("error", (err) => console.error("Stream Deck connection failed:", err.message)); // "close" follows
 ws.on("message", (raw) => {
-  const msg = JSON.parse(raw);
+  let msg;
+  try {
+    msg = JSON.parse(raw);
+  } catch {
+    return;
+  }
   const kind = msg.action && msg.action.split(".").pop();
   if (msg.event === "willAppear") {
     contexts.set(msg.context, kind);
@@ -49,10 +56,13 @@ async function call(method, route) {
 }
 
 async function onKey(context, kind) {
+  poller.invalidate();
   try {
-    setState(await call("POST", ROUTES[kind]));
-  } catch {
-    if (kind === "toggle" && launchApp()) {
+    const next = await call("POST", ROUTES[kind]);
+    poller.invalidate();
+    setState(next);
+  } catch (err) {
+    if (kind === "toggle" && appIsDown(err) && launchApp()) {
       send({ event: "showOk", context });
     } else {
       send({ event: "showAlert", context });
@@ -65,7 +75,9 @@ function launchApp() {
   try {
     const exe = JSON.parse(fs.readFileSync(CONFIG, "utf8")).exe_path;
     if (!exe || !fs.existsSync(exe)) return false;
-    spawn(exe, [], { detached: true, stdio: "ignore", cwd: path.dirname(exe) }).unref();
+    const child = spawn(exe, [], { detached: true, stdio: "ignore", cwd: path.dirname(exe) });
+    child.on("error", () => {}); // a failed start arrives here, not in the catch below
+    child.unref();
     launchedAt = Date.now();
     return true;
   } catch {
@@ -80,13 +92,9 @@ function setState(next) {
 }
 
 // Poll so the keys follow toggles made by hotkey, mouse button or the app window.
-setInterval(async () => {
-  if (!contexts.size) return;
-  try {
-    setState(await call("GET", "/state"));
-  } catch {
-    setState(null);
-  }
+const poller = createPoller(() => call("GET", "/state"), setState);
+setInterval(() => {
+  if (contexts.size) poller.tick();
 }, 300);
 
 function render(context) {

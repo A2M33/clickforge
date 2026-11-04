@@ -5,7 +5,9 @@ $dst = Join-Path $env:APPDATA "Elgato\StreamDeck\Plugins\com.a2m33.clickforge.sd
 
 Push-Location $src
 npm install --omit=dev --no-audit --no-fund | Out-Null
+$npmExit = $LASTEXITCODE
 Pop-Location
+if ($npmExit -ne 0) { throw "npm install failed with exit code $npmExit" }
 
 Get-Process StreamDeck -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 2

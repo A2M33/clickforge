@@ -217,6 +217,12 @@ class LockLed:
             self._tap(self.mode)  # injected, so our own hotkey hook ignores it
 
 
+class ExclusiveHTTPServer(ThreadingHTTPServer):
+    # SO_REUSEADDR on Windows lets a second process bind a port that's in use, and the two
+    # then share the requests. Linux needs it to rebind quickly and doesn't have that problem.
+    allow_reuse_address = os.name != "nt"
+
+
 class ApiServer:
     """Localhost-only HTTP API: GET /state, POST /toggle, /multiplier/up, /multiplier/down.
 
@@ -254,7 +260,7 @@ class ApiServer:
                 pass
 
         try:
-            self.httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+            self.httpd = ExclusiveHTTPServer(("127.0.0.1", port), Handler)
         except OSError:  # port busy (e.g. a second instance): run without the API
             self.httpd = None
             return

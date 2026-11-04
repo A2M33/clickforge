@@ -59,3 +59,9 @@ def test_unknown_routes_are_404(server):
     assert request(port, "GET", "/nope")[0] == 404
     assert request(port, "POST", "/nope", {"X-ClickForge": "1"})[0] == 404
 
+
+def test_a_busy_port_means_no_api_rather_than_a_crash(server):
+    app, port = server
+    second = ApiServer({}, app.state, lambda fn: fn(), port=port)
+    assert second.httpd is None  # SO_REUSEADDR let it bind, and the two shared the port
+    second.stop()

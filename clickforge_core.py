@@ -1,7 +1,9 @@
 """ClickForge logic with no hooks, no Windows calls and no UI, so tests can run it anywhere."""
 import json
+import math
 import os
 import queue
+import shutil
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -23,6 +25,11 @@ MOUSE_MSGS = {
 }
 PLAIN_UNBINDABLE = {"mouse_left", "mouse_right"}  # need a modifier, or every click would toggle
 
+MULTIPLIER_RANGE = (1, 100)
+DELAY_RANGE = (1, 200)
+BUTTON_CHOICES = ("left", "right", "both")
+LED_CHOICES = ("off", "scroll", "num")
+
 
 def config_path():
     return os.path.join(os.environ.get("APPDATA", "."), APP_NAME, "config.json")
@@ -38,14 +45,63 @@ def mouse_name(msg, mouse_data):
     return name, pressed
 
 
-def load_config(path=None):
-    cfg = dict(DEFAULTS)
+def valid_combo(combo):
+    """A list of known modifiers plus exactly one other key, and never a plain left/right click."""
+    if not isinstance(combo, list) or not all(isinstance(k, str) and k for k in combo):
+        return False
+    mods = [k for k in combo if k in MOD_ORDER]
+    rest = [k for k in combo if k not in MOD_ORDER]
+    return len(rest) == 1 and (bool(mods) or rest[0] not in PLAIN_UNBINDABLE)
+
+
+def _number(value, low, high, default):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return default
     try:
-        with open(path or config_path(), encoding="utf-8") as f:
-            cfg.update(json.load(f))
-    except (OSError, ValueError):
-        pass
+        return max(low, min(high, round(value)))
+    except (OverflowError, ValueError):  # Infinity and NaN both parse as JSON here
+        return default
+
+
+def sanitize_config(raw):
+    """A config that's safe to run, from whatever the file held.
+
+    Keys we don't manage (the plugin's exe_path) pass through untouched.
+    """
+    if not isinstance(raw, dict):
+        return dict(DEFAULTS)
+    cfg = {**DEFAULTS, **raw}
+    cfg["multiplier"] = _number(cfg["multiplier"], *MULTIPLIER_RANGE, DEFAULTS["multiplier"])
+    cfg["delay_ms"] = _number(cfg["delay_ms"], *DELAY_RANGE, DEFAULTS["delay_ms"])
+    if cfg["buttons"] not in BUTTON_CHOICES:
+        cfg["buttons"] = DEFAULTS["buttons"]
+    if cfg["led"] not in LED_CHOICES:
+        cfg["led"] = DEFAULTS["led"]
+    if not isinstance(cfg["sound"], bool):
+        cfg["sound"] = DEFAULTS["sound"]
+    if not valid_combo(cfg["hotkey"]):
+        cfg["hotkey"] = list(DEFAULTS["hotkey"])
     return cfg
+
+
+def load_config(path=None):
+    path = path or config_path()
+    try:
+        with open(path, encoding="utf-8") as f:
+            return sanitize_config(json.load(f))
+    except OSError:
+        return dict(DEFAULTS)
+    except ValueError:
+        keep_damaged_copy(path)
+        return dict(DEFAULTS)
+
+
+def keep_damaged_copy(path):
+    """The next save overwrites the file, so hold on to what's in it."""
+    try:
+        shutil.copyfile(path, f"{path}.bad")
+    except OSError:
+        pass
 
 
 def save_config(cfg, path=None):

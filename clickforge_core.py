@@ -1,4 +1,5 @@
-"""ClickForge logic with no hooks, no Windows calls and no UI, so tests can run it anywhere."""
+"""ClickForge logic with no hooks and no UI, so tests can run it anywhere."""
+import ctypes
 import json
 import math
 import os
@@ -11,6 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 APP_NAME = "ClickForge"
 API_PORT = 47811  # localhost control API used by the Stream Deck plugin
+ERROR_ALREADY_EXISTS = 183
 UI_WAIT_SECONDS = 0.6  # under the plugin's 800 ms timeout, or a slow UI looks like a closed app
 
 DEFAULTS = {"multiplier": 12, "delay_ms": 10, "buttons": "left", "hotkey": ["f6"], "sound": True,
@@ -330,6 +332,27 @@ class LockLed:
     def _set(self, on):
         if self._read_state(self.mode) != on:
             self._tap(self.mode)  # injected, so our own hotkey hook ignores it
+
+
+def claim_single_instance(name=f"Local\\{APP_NAME}"):
+    """A release function, or None if another ClickForge holds `name`.
+
+    Two copies would each hook the mouse, so every real click would multiply twice. Windows
+    drops the claim when the process ends, even after a crash.
+    """
+    if os.name != "nt":
+        return lambda: None
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p]
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    handle = kernel32.CreateMutexW(None, False, name)
+    if not handle:
+        return lambda: None  # we can't tell, and refusing to start would be worse
+    if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
+        kernel32.CloseHandle(handle)
+        return None
+    return lambda: kernel32.CloseHandle(handle)
 
 
 def run_pending(jobs):

@@ -11,16 +11,21 @@ import customtkinter as ctk
 from pynput import keyboard, mouse
 
 from clickforge_core import (APP_NAME, ApiServer, ClickMultiplier, HotkeyState, LockLed, blend,
-                             format_combo, load_config, mouse_name, run_pending, save_config,
+                             claim_single_instance, format_combo, load_config, mouse_name, run_pending, save_config,
                              vk_name)
 
 # Windows low-level hook flags: set on events produced by SendInput (our own clicks).
 LLMHF_INJECTED = 0x01
 LLKHF_INJECTED = 0x10
 GA_ROOT = 2
+SW_RESTORE = 9
 
 user32 = ctypes.WinDLL("user32")  # our own instance: argtypes set here don't reach pynput
 user32.GetAsyncKeyState.restype = ctypes.c_short
+user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+user32.FindWindowW.restype = wintypes.HWND
+user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+user32.SetForegroundWindow.argtypes = [wintypes.HWND]
 user32.WindowFromPoint.argtypes = [wintypes.POINT]
 user32.WindowFromPoint.restype = wintypes.HWND
 user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
@@ -422,6 +427,19 @@ class App(ctk.CTk):
         self.destroy()
 
 
+def show_running_window():
+    # Tk's window class narrows this down: a folder called ClickForge has the same title.
+    hwnd = user32.FindWindowW("TkTopLevel", APP_NAME)
+    if hwnd:
+        user32.ShowWindow(hwnd, SW_RESTORE)
+        user32.SetForegroundWindow(hwnd)
+
+
 if __name__ == "__main__":
+    release = claim_single_instance()
+    if release is None:
+        show_running_window()
+        sys.exit(0)
     ctk.set_appearance_mode("dark")
     App().mainloop()
+    release()

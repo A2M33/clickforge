@@ -118,7 +118,8 @@ def test_the_names_the_plugin_uses_are_fine(server):
 def test_stop_frees_the_port():
     app = App()
     port = free_port()
-    ApiServer({}, app.state, lambda fn: fn(), port=port).stop()
+    first = ApiServer({}, app.state, lambda fn: fn(), port=port)  # kept, so the GC can't close it
+    first.stop()
     again = ApiServer({}, app.state, lambda fn: fn(), port=port)
     assert again.httpd is not None
     again.stop()

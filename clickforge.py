@@ -11,7 +11,8 @@ import customtkinter as ctk
 from pynput import keyboard, mouse
 
 from clickforge_core import (APP_NAME, ApiServer, ClickMultiplier, HotkeyState, LockLed, blend,
-                             format_combo, load_config, mouse_name, save_config, vk_name)
+                             format_combo, load_config, mouse_name, run_pending, save_config,
+                             vk_name)
 
 # Windows low-level hook flags: set on events produced by SendInput (our own clicks).
 LLMHF_INJECTED = 0x01
@@ -403,8 +404,7 @@ class App(ctk.CTk):
 
     # ---------- loop ----------
     def _tick(self):
-        while not self.ui_queue.empty():
-            self.ui_queue.get_nowait()()
+        run_pending(self.ui_queue)
         self.real_label.configure(text=f"{self.engine.real_clicks:,}")
         self.gen_label.configure(text=f"{self.engine.generated:,}")
         if self.engine.enabled:  # breathing glow on the power ring

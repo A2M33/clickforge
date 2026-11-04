@@ -6,10 +6,12 @@ import queue
 import shutil
 import threading
 import time
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 APP_NAME = "ClickForge"
 API_PORT = 47811  # localhost control API used by the Stream Deck plugin
+UI_WAIT_SECONDS = 0.6  # under the plugin's 800 ms timeout, or a slow UI looks like a closed app
 
 DEFAULTS = {"multiplier": 12, "delay_ms": 10, "buttons": "left", "hotkey": ["f6"], "sound": True,
             "led": "scroll"}
@@ -330,6 +332,19 @@ class LockLed:
             self._tap(self.mode)  # injected, so our own hotkey hook ignores it
 
 
+def run_pending(jobs):
+    """Run what the other threads queued for the UI thread. One failure can't stop the rest."""
+    while True:
+        try:
+            job = jobs.get_nowait()
+        except queue.Empty:
+            return
+        try:
+            job()
+        except Exception:
+            traceback.print_exc()
+
+
 class ExclusiveHTTPServer(ThreadingHTTPServer):
     # SO_REUSEADDR on Windows lets a second process bind a port that's in use, and the two
     # then share the requests. Linux needs it to rebind quickly and doesn't have that problem.
@@ -365,8 +380,15 @@ class ApiServer:
                     self._reply(404, {"error": "not found"})
                     return
                 done = threading.Event()
-                run_on_ui(lambda: (action(), done.set()))  # Tk state changes on the Tk thread
-                done.wait(1.0)
+
+                def run():
+                    try:
+                        action()
+                    finally:
+                        done.set()
+
+                run_on_ui(run)  # Tk state changes on the Tk thread
+                done.wait(UI_WAIT_SECONDS)
                 self._reply(200, get_state())
 
             def log_message(self, *args):

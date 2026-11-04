@@ -1,7 +1,8 @@
+import queue
 import threading
 import time
 
-from clickforge_core import ClickMultiplier
+from clickforge_core import ClickMultiplier, run_pending
 
 CFG = {"multiplier": 4, "delay_ms": 10, "buttons": "left"}
 
@@ -179,3 +180,17 @@ def test_stop_worker_ends_the_thread_even_with_a_full_queue():
     rig.mult.stop_worker()
     assert not rig.mult._thread.is_alive()
     assert not rig.mult.enabled
+
+
+def test_one_failing_ui_job_does_not_stop_the_others():
+    jobs = queue.Queue()
+    ran = []
+
+    def broken():
+        raise ValueError("bad widget")
+
+    jobs.put(lambda: ran.append(1))
+    jobs.put(broken)
+    jobs.put(lambda: ran.append(2))
+    run_pending(jobs)  # the exception used to end the UI loop, and with it every hotkey
+    assert ran == [1, 2]

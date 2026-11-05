@@ -1,6 +1,6 @@
 {
   "Name": "ClickForge",
-  "Version": "1.0.0.0",
+  "Version": "1.0.1.0",
   "Author": "A2M33",
   "Description": "Toggle ClickForge and change its click multiplier, with live ON/OFF state on the key.",
   "Icon": "imgs/plugin",

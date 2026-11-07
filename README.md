@@ -12,7 +12,7 @@ ClickForge turns one mouse click into many. Set it to 12, click once, and Window
 - **Left, right, or both** mouse buttons.
 - **Rebindable toggle**: any key, a key combo like `Ctrl + G`, or a mouse button (middle, Mouse 4, Mouse 5). A bound mouse button stops doing its normal job, so Mouse 4 won't trigger "Back" in your browser.
 - **Works mid-game**: the shortcut fires while you hold Shift, W, or any other key.
-- **Keyboard LED indicator**: Scroll Lock (or Num Lock) lights up while ClickForge runs. You can see it even in exclusive-fullscreen games, where no on-screen overlay can draw.
+- **Keyboard LED indicator**: Scroll Lock (or Num Lock) lights up while the multiplier is on. You can see it even in exclusive-fullscreen games, where no on-screen overlay can draw.
 - **Stream Deck plugin** with live keys (below).
 - **Sound cue** on toggle, and a live counter of real and generated clicks.
 
@@ -24,7 +24,7 @@ Clicks on the ClickForge window itself stay single, so the ON button doesn't fir
   <img src="docs/streamdeck.png" width="560" alt="Stream Deck keys: ON ×12, OFF ×12, plus and minus">
 </p>
 
-The plugin adds three actions: **Toggle**, **Clicks +1** and **Clicks −1**. The keys show the current state and multiplier, and they update when you toggle from the keyboard or the app too. If ClickForge isn't running, the Toggle key shows START and launches it.
+The plugin adds three actions: **Toggle**, **Clicks +1** and **Clicks -1**. The keys show the current state and multiplier, and they update when you toggle from the keyboard or the app too. If ClickForge isn't running, the Toggle key shows START and launches it.
 
 ## Install
 
@@ -45,12 +45,13 @@ python clickforge.py
 
 For the plugin, you need Node.js. `streamdeck\install.ps1` installs its one dependency (`ws`), copies it into Stream Deck and restarts the Stream Deck app.
 
-`clickforge_core.py` holds the logic with no hooks or UI, so the tests run on any OS:
+`clickforge_core.py` holds the logic with no hooks or UI, so most tests run on any OS. The tests for the hook glue in `clickforge.py` run on Windows only. `plugin_host.test.js` starts the real plugin against a fake Stream Deck and a fake app, so it needs `ws` installed first:
 
 ```bat
-pip install pytest
+pip install -r requirements-dev.txt
 python -m pytest
-node --test tests/plugin_logic.test.js
+npm ci --prefix streamdeck\com.a2m33.clickforge.sdPlugin
+node --test tests/plugin_logic.test.js tests/plugin_host.test.js
 ```
 
 ## How it works
@@ -65,6 +66,7 @@ node --test tests/plugin_logic.test.js
 
 - Games with anti-cheat may detect or block synthetic input. Check a game's rules before you use ClickForge in it.
 - To reach apps that run as administrator, run ClickForge as administrator too.
+- If you pick the Num Lock indicator, ClickForge turns Num Lock off while the multiplier is off, and the number pad sends arrows and Home/End instead of digits. A shortcut bound to a number pad key keeps working.
 
 ## License
 

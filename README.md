@@ -3,7 +3,10 @@
 ClickForge turns one mouse click into many. Set it to 12, click once, and Windows receives 12 clicks. You switch it on and off with a key, a mouse side button, or a Stream Deck key.
 
 <p align="center">
-  <img src="docs/app.png" width="360" alt="ClickForge window in the ON state with the multiplier at 12">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/app-dark.png">
+    <img src="docs/app.png" width="360" alt="ClickForge window switched on: the status lamp is amber, 12 clicks per click, 10 ms between clicks, Mouse 4 as the shortcut">
+  </picture>
 </p>
 
 ## Features
@@ -15,16 +18,17 @@ ClickForge turns one mouse click into many. Set it to 12, click once, and Window
 - **Keyboard LED indicator**: Scroll Lock (or Num Lock) lights up while the multiplier is on. You can see it even in exclusive-fullscreen games, where no on-screen overlay can draw.
 - **Stream Deck plugin** with live keys (below).
 - **Sound cue** on toggle, and a live counter of real and generated clicks.
+- **Light and dark**: the window follows your Windows theme.
 
-Clicks on the ClickForge window itself stay single, so the ON button doesn't fire twelve times. A burst also stops when your cursor reaches the window, so you can get to the OFF button during a long one.
+Clicks on the ClickForge window itself stay single, so the Turn on button doesn't fire twelve times. A burst also stops when your cursor reaches the window, so you can get to Turn off during a long one.
 
 ## Stream Deck
 
 <p align="center">
-  <img src="docs/streamdeck.png" width="560" alt="Stream Deck keys: ON ×12, OFF ×12, plus and minus">
+  <img src="docs/streamdeck.png" width="560" alt="Stream Deck keys: On ×12 with an amber lamp, Off ×12 with a grey lamp, Start with a red lamp, then plus and minus at ×12">
 </p>
 
-The plugin adds three actions: **Toggle**, **Clicks +1** and **Clicks -1**. The keys show the current state and multiplier, and they update when you toggle from the keyboard or the app too. If ClickForge isn't running, the Toggle key shows START and launches it.
+The plugin adds three actions: **Toggle**, **Clicks +1** and **Clicks -1**. The keys show the current state and multiplier, and they update when you toggle from the keyboard or the app too. If ClickForge isn't running, the Toggle key shows Start with a red lamp, and pressing it launches the app.
 
 ## Install
 
@@ -58,7 +62,7 @@ node --test tests/plugin_logic.test.js tests/plugin_host.test.js
 
 - A low-level Windows mouse hook (`pynput`) watches real clicks. On release, a worker thread sends the extra clicks with `SendInput`.
 - Windows marks synthetic input with the `LLMHF_INJECTED` flag. The hook drops flagged events, so generated clicks never trigger more clicks.
-- The UI uses `customtkinter`. Hook threads pass work to the Tk thread through a queue, since Tk isn't thread-safe.
+- The UI uses `customtkinter`, with the Barlow font bundled in `assets/fonts`. Hook threads pass work to the Tk thread through a queue, since Tk isn't thread-safe.
 - The app serves a small HTTP API on `127.0.0.1:47811` (`GET /state`, `POST /toggle`, `POST /multiplier/up|down`). POST requests need an `X-ClickForge` header. A browser can't add that header cross-origin without a CORS preflight, and the app never answers one, so a web page can't toggle the clicker. The app also refuses any `Host` other than `127.0.0.1` and `localhost`, which stops a site from pointing its own domain at your machine to get around that.
 - The Stream Deck plugin (Node.js) polls that API and draws each key as an SVG.
 
@@ -70,4 +74,4 @@ node --test tests/plugin_logic.test.js tests/plugin_host.test.js
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Barlow is under the [SIL Open Font License](assets/fonts/OFL.txt).

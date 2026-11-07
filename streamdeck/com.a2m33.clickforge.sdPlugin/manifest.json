@@ -7,7 +7,7 @@
   "Category": "ClickForge",
   "CategoryIcon": "imgs/category",
   "CodePath": "bin/plugin.js",
-  "Nodejs": { "Version": "20", "Debug": "enabled" },
+  "Nodejs": { "Version": "20" },
   "SDKVersion": 2,
   "Software": { "MinimumVersion": "6.5" },
   "OS": [{ "Platform": "windows", "MinimumVersion": "10" }],

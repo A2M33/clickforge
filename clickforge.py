@@ -59,6 +59,8 @@ MODIFIERS = {
 }
 
 def key_name(key):
+    if key is None:  # pynput sends None for a key it couldn't translate
+        return None
     if isinstance(key, keyboard.Key):
         return key.name
     vk = getattr(key, "vk", None)

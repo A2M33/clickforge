@@ -61,3 +61,22 @@ def test_button_names_match_the_multiplier(clickforge):
     assert clickforge.mouse.Button.left.name == "left"
     assert clickforge.mouse.Button.right.name == "right"
     assert clickforge.mouse.Button["left"] is clickforge.mouse.Button.left
+
+
+def bare_hotkeys(clickforge, combo, triggers):
+    """A HotkeyManager without its keyboard hook."""
+    from clickforge_core import HotkeyState
+
+    manager = clickforge.HotkeyManager.__new__(clickforge.HotkeyManager)
+    HotkeyState.__init__(manager, combo, lambda: triggers.append(1), lambda combo: None)
+    return manager
+
+
+def test_a_key_pynput_cannot_translate_does_not_kill_the_hook(clickforge):
+    # An exception in the callback stops pynput's listener, and the shortcut with it.
+    triggers = []
+    manager = bare_hotkeys(clickforge, ["f6"], triggers)
+    manager._press(None)
+    manager._release(None)
+    manager._press(clickforge.keyboard.Key.f6)
+    assert triggers == [1]

@@ -97,3 +97,17 @@ test("repeated failures report the app as gone", async () => {
   await poller.tick();
   assert.deepStrictEqual(states, [null]);
 });
+
+const { keySvg } = require("../streamdeck/com.a2m33.clickforge.sdPlugin/bin/keys");
+const lampFill = (svg) => svg.match(/<circle [^>]*fill="(#[0-9a-f]{6})"/)[1];
+
+test("the toggle key's lamp is amber when on, grey when off, red when the app is closed", () => {
+  assert.strictEqual(lampFill(keySvg("toggle", { enabled: true, multiplier: 12 })), "#f0ab2a");
+  assert.strictEqual(lampFill(keySvg("toggle", { enabled: false, multiplier: 12 })), "#2f3732");
+  assert.strictEqual(lampFill(keySvg("toggle", null)), "#e2584d");
+});
+
+test("plus and minus keys show the multiplier, and nothing while the app is closed", () => {
+  assert.match(keySvg("plus", { enabled: false, multiplier: 7 }), />×7</);
+  assert.doesNotMatch(keySvg("minus", null), /×/);
+});

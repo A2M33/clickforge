@@ -147,15 +147,15 @@ describe("plugin against a fake Stream Deck", () => {
     deck.send("willAppear", "t", "toggle");
     deck.send("willAppear", "p", "plus");
     deck.send("willAppear", "m", "minus");
-    await deck.waitFor(imageFor("t", "OFF", "×12"));
+    await deck.waitFor(imageFor("t", "Off", "×12"));
     await deck.waitFor(imageFor("p", "+", "×12"));
     await deck.waitFor(imageFor("m", "−", "×12"));
   });
 
-  it("toggles the app on keyDown and shows ON", async () => {
+  it("toggles the app on keyDown and shows On", async () => {
     const mark = deck.mark();
     deck.send("keyDown", "t", "toggle");
-    await deck.waitFor(imageFor("t", "ON", "×12"), mark);
+    await deck.waitFor(imageFor("t", "On", "×12"), mark);
     assert.deepStrictEqual(app.posts.at(-1), { url: "/toggle", header: "1" });
   });
 
@@ -172,7 +172,7 @@ describe("plugin against a fake Stream Deck", () => {
     let mark = deck.mark();
     deck.send("keyDown", "p", "plus");
     await deck.waitFor(imageFor("p", "+", "×13"), mark);
-    await deck.waitFor(imageFor("t", "ON", "×13"), mark);
+    await deck.waitFor(imageFor("t", "On", "×13"), mark);
     mark = deck.mark();
     deck.send("keyDown", "m", "minus");
     await deck.waitFor(imageFor("m", "−", "×12"), mark);
@@ -181,7 +181,7 @@ describe("plugin against a fake Stream Deck", () => {
   it("follows a toggle made in the app itself", async () => {
     const mark = deck.mark();
     app.state.enabled = false; // the hotkey, a mouse button or the window
-    await deck.waitFor(imageFor("t", "OFF"), mark);
+    await deck.waitFor(imageFor("t", "Off"), mark);
   });
 
   it("stops drawing a key once it disappears", async () => {
@@ -189,13 +189,13 @@ describe("plugin against a fake Stream Deck", () => {
     await sleep(100);
     const mark = deck.mark();
     app.state.multiplier = 20;
-    await deck.waitFor(imageFor("t", "OFF", "×20"), mark);
+    await deck.waitFor(imageFor("t", "Off", "×20"), mark);
     assert.ok(!deck.since(mark).some((m) => m.context === "m"));
   });
 
-  it("shows START once the app is gone", async () => {
+  it("shows Start once the app is gone", async () => {
     await app.close();
-    await deck.waitFor(imageFor("t", "START"), deck.mark());
+    await deck.waitFor(imageFor("t", "Start"), deck.mark());
   });
 
   it("alerts on toggle when it doesn't know where the app is", async () => {
@@ -226,7 +226,7 @@ describe("plugin against a fake Stream Deck", () => {
 
   it("picks the app back up when it starts again", async () => {
     await app.listen(appPort);
-    await deck.waitFor(imageFor("t", "OFF", "×20"), deck.mark());
+    await deck.waitFor(imageFor("t", "Off", "×20"), deck.mark());
   });
 
   it("exits when Stream Deck closes the connection", async () => {

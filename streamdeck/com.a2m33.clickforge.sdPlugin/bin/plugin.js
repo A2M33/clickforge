@@ -38,6 +38,7 @@ ws.on("message", (raw) => {
   if (msg.event === "willAppear") {
     contexts.set(msg.context, kind);
     render(msg.context);
+    poller.tick(); // the state may be old (keys were hidden) or unknown (just started)
   } else if (msg.event === "willDisappear") {
     contexts.delete(msg.context);
   } else if (msg.event === "keyDown") {

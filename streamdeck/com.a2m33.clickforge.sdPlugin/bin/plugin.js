@@ -5,7 +5,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 const { appIsDown, createPoller } = require("./logic");
 
-const API = "http://127.0.0.1:47811";
+const API = process.env.CLICKFORGE_API || "http://127.0.0.1:47811"; // tests point it at a fake app
 const CONFIG = path.join(process.env.APPDATA || "", "ClickForge", "config.json");
 const ROUTES = { toggle: "/toggle", plus: "/multiplier/up", minus: "/multiplier/down" };
 

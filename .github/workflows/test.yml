@@ -22,4 +22,5 @@ jobs:
       - run: python -m pytest -q
       - run: python -m py_compile clickforge.py clickforge_core.py
       - run: node --check streamdeck/com.a2m33.clickforge.sdPlugin/bin/plugin.js
-      - run: node --test tests/plugin_logic.test.js
+      - run: npm ci --prefix streamdeck/com.a2m33.clickforge.sdPlugin
+      - run: node --test tests/plugin_logic.test.js tests/plugin_host.test.js

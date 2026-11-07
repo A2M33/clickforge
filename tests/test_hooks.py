@@ -65,11 +65,15 @@ def test_button_names_match_the_multiplier(clickforge):
 
 def bare_hotkeys(clickforge, combo, triggers):
     """A HotkeyManager without its keyboard hook."""
-    from clickforge_core import HotkeyState
+    from clickforge_core import HotkeyState, NumpadNames
 
     manager = clickforge.HotkeyManager.__new__(clickforge.HotkeyManager)
     HotkeyState.__init__(manager, combo, lambda: triggers.append(1), lambda combo: None)
+    manager._numpad = NumpadNames()
     return manager
+
+
+WM_KEYDOWN = 0x100
 
 
 def test_a_key_pynput_cannot_translate_does_not_kill_the_hook(clickforge):
@@ -79,4 +83,29 @@ def test_a_key_pynput_cannot_translate_does_not_kill_the_hook(clickforge):
     manager._press(None)
     manager._release(None)
     manager._press(clickforge.keyboard.Key.f6)
+    assert triggers == [1]
+
+
+def test_injected_keys_are_filtered_out(clickforge):
+    manager = bare_hotkeys(clickforge, ["f6"], [])
+    injected = SimpleNamespace(flags=clickforge.LLKHF_INJECTED, vkCode=0x75)
+    assert manager._filter(WM_KEYDOWN, injected) is False
+
+
+def test_number_pad_8_matches_with_num_lock_off(clickforge):
+    triggers = []
+    manager = bare_hotkeys(clickforge, ["num8"], triggers)
+    assert manager._filter(WM_KEYDOWN, SimpleNamespace(flags=0, vkCode=0x26)) is True
+    manager._press(clickforge.keyboard.Key.up)  # what pynput reports for it
+    assert triggers == [1]
+    manager._filter(WM_KEYDOWN, SimpleNamespace(flags=0x01, vkCode=0x26))  # the arrow key
+    manager._press(clickforge.keyboard.Key.up)
+    assert triggers == [1]
+
+
+def test_number_pad_8_matches_with_num_lock_on(clickforge):
+    triggers = []
+    manager = bare_hotkeys(clickforge, ["num8"], triggers)
+    manager._filter(WM_KEYDOWN, SimpleNamespace(flags=0, vkCode=0x68))
+    manager._press(clickforge.keyboard.KeyCode.from_vk(0x68))
     assert triggers == [1]

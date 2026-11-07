@@ -1,4 +1,5 @@
 """ClickForge logic with no hooks and no UI, so tests can run it anywhere."""
+import collections
 import ctypes
 import json
 import math
@@ -33,7 +34,16 @@ PLAIN_UNBINDABLE = {"mouse_left", "mouse_right"}  # need a modifier, or every cl
 
 # Punctuation keys are stored by virtual-key code. These are the US layout's names for them.
 KEY_LABELS = {"vk186": ";", "vk187": "=", "vk188": ",", "vk189": "-", "vk190": ".", "vk191": "/",
-              "vk192": "`", "vk219": "[", "vk220": "\\", "vk221": "]", "vk222": "'"}
+              "vk192": "`", "vk219": "[", "vk220": "\\", "vk221": "]", "vk222": "'",
+              "vk106": "NUM *", "vk107": "NUM +", "vk109": "NUM -", "vk110": "NUM .",
+              "vk111": "NUM /"}
+
+# With Num Lock off, the number pad sends arrows, Home, End and so on. The real navigation keys
+# carry the extended flag and the number pad's don't, which lets a number pad key keep one name.
+LLKHF_EXTENDED = 0x01
+NUMPAD_NAV = {0x2D: "num0", 0x23: "num1", 0x28: "num2", 0x22: "num3", 0x25: "num4",
+              0x0C: "num5", 0x27: "num6", 0x24: "num7", 0x26: "num8", 0x21: "num9",
+              0x2E: "vk110"}
 
 MIN_UI_SCALE = 0.6  # below this the text stops being readable
 MULTIPLIER_RANGE = (1, 100)
@@ -136,6 +146,33 @@ def vk_name(vk):
     if 0x60 <= vk <= 0x69:
         return f"num{vk - 0x60}"
     return f"vk{vk}"
+
+
+class NumpadNames:
+    """Gives number pad keys the same name whether Num Lock is on or off.
+
+    Without this, a number pad shortcut stops working as soon as the Num Lock LED indicator
+    flips Num Lock. The hook filter sees the extended flag and the key callback doesn't; the
+    callbacks come later on another thread, in the same order, so the two are paired by order.
+    """
+
+    def __init__(self):
+        self._seen = collections.deque(maxlen=64)
+
+    def seen(self, vk, flags):
+        """From the hook filter, for every event that goes on to the key callbacks."""
+        if vk in NUMPAD_NAV:
+            self._seen.append((vk, None if flags & LLKHF_EXTENDED else NUMPAD_NAV[vk]))
+
+    def name(self, vk, fallback):
+        """From the key callback: the number pad name for this event, or `fallback`."""
+        if vk not in NUMPAD_NAV:
+            return fallback
+        while self._seen:
+            seen_vk, pad = self._seen.popleft()
+            if seen_vk == vk:
+                return pad or fallback
+        return fallback
 
 
 def key_label(name):

@@ -10,9 +10,9 @@ from ctypes import wintypes
 import customtkinter as ctk
 from pynput import keyboard, mouse
 
-from clickforge_core import (APP_NAME, ApiServer, ClickMultiplier, HotkeyState, LockLed, blend,
-                             claim_single_instance, fit_scale, format_combo, load_config, mouse_name, run_all, run_pending,
-                             save_config, vk_name)
+from clickforge_core import (APP_NAME, ApiServer, ClickMultiplier, HotkeyState, LockLed, NumpadNames,
+                             blend, claim_single_instance, fit_scale, format_combo, load_config, mouse_name,
+                             run_all, run_pending, save_config, vk_name)
 
 # Windows low-level hook flags: set on events produced by SendInput (our own clicks).
 LLMHF_INJECTED = 0x01
@@ -67,6 +67,12 @@ def key_name(key):
     if vk is not None:
         return vk_name(vk)
     return key.char.lower() if key.char else None
+
+
+def key_vk(key):
+    if isinstance(key, keyboard.Key):
+        key = key.value
+    return getattr(key, "vk", None)
 
 
 class ClickEngine(ClickMultiplier):
@@ -127,24 +133,33 @@ class HotkeyManager(HotkeyState):
 
     def __init__(self, combo, on_trigger, on_captured):
         super().__init__(combo, on_trigger, on_captured, mod_is_down=mod_is_down)
+        self._numpad = NumpadNames()
         self._listener = keyboard.Listener(
-            on_press=self._press, on_release=self._release,
-            win32_event_filter=lambda msg, data: not (data.flags & LLKHF_INJECTED))
+            on_press=self._press, on_release=self._release, win32_event_filter=self._filter)
         self._listener.start()
+
+    def _filter(self, msg, data):
+        if data.flags & LLKHF_INJECTED:
+            return False
+        self._numpad.seen(data.vkCode, data.flags)
+        return True
+
+    def _name(self, key):
+        return self._numpad.name(key_vk(key), key_name(key))
 
     def _press(self, key):
         mod = MODIFIERS.get(key)
         if mod:
             self.mod_down(mod)
         else:
-            self.key_down(key_name(key))
+            self.key_down(self._name(key))
 
     def _release(self, key):
         mod = MODIFIERS.get(key)
         if mod:
             self.mod_up(mod)
         else:
-            self.key_up(key_name(key))
+            self.key_up(self._name(key))
 
     def stop(self):
         self._listener.stop()

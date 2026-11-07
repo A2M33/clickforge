@@ -1,4 +1,4 @@
-from clickforge_core import HotkeyState
+from clickforge_core import HotkeyState, NumpadNames
 
 
 class Rig:
@@ -155,4 +155,46 @@ def test_slow_auto_repeat_is_still_auto_repeat():
     for _ in range(5):
         rig.keys.key_down("f6")
         kb.t += 1.0  # the slowest repeat delay Windows offers
+    assert rig.triggers == 1
+
+
+VK_UP, VK_CLEAR, VK_F6 = 0x26, 0x0C, 0x75
+EXTENDED = 0x01
+
+
+def test_a_number_pad_key_keeps_its_name_with_num_lock_off():
+    pad = NumpadNames()
+    pad.seen(VK_UP, 0)  # number pad 8 with Num Lock off: VK_UP without the extended flag
+    assert pad.name(VK_UP, "up") == "num8"
+    pad.seen(VK_CLEAR, 0)
+    assert pad.name(VK_CLEAR, "vk12") == "num5"
+
+
+def test_the_real_arrow_keys_keep_their_own_names():
+    pad = NumpadNames()
+    pad.seen(VK_UP, EXTENDED)
+    assert pad.name(VK_UP, "up") == "up"
+
+
+def test_other_keys_pass_through():
+    pad = NumpadNames()
+    pad.seen(VK_F6, 0)
+    assert pad.name(VK_F6, "f6") == "f6"
+
+
+def test_events_are_paired_in_order():
+    pad = NumpadNames()
+    pad.seen(VK_UP, 0)  # number pad 8, then the arrow key, before either callback runs
+    pad.seen(VK_UP, EXTENDED)
+    assert pad.name(VK_UP, "up") == "num8"
+    assert pad.name(VK_UP, "up") == "up"
+
+
+def test_a_number_pad_shortcut_survives_the_num_lock_led():
+    # The Num Lock LED turns Num Lock off while ClickForge is off, so the bound key arrives as
+    # an arrow. It used to stop matching, and the shortcut never fired again.
+    pad = NumpadNames()
+    rig = Rig(("num8",))
+    pad.seen(VK_UP, 0)
+    tap(rig.keys, pad.name(VK_UP, "up"))
     assert rig.triggers == 1

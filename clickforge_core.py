@@ -267,6 +267,8 @@ class ClickMultiplier:
                 self._replay(*job)
 
     def _replay(self, button, session):
+        if session != self._session:  # left over from before a switch-off: skip without waiting
+            return
         for _ in range(self.multiplier - 1):
             self._sleep(max(self.delay_ms, 1) / 1000)
             if session != self._session:  # switched off, even if it's back on by now

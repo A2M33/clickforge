@@ -204,3 +204,15 @@ def test_shutdown_finishes_after_a_failing_step():
 
     run_all([lambda: ran.append("hooks"), broken, lambda: ran.append("server")])
     assert ran == ["hooks", "server"]  # one failure used to leave the window open and hooks on
+
+
+def test_old_bursts_are_dropped_without_waiting_out_their_delay():
+    rig = Rig({**CFG, "delay_ms": 200})
+    for _ in range(64):
+        rig.real_click()
+    rig.mult.enabled = False
+    rig.mult.enabled = True
+    rig.run()
+    # Each one used to sleep 200 ms first, so a fresh click after a quick off/on sat behind
+    # almost 13 seconds of dead bursts.
+    assert rig.waits == []

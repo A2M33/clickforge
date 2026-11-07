@@ -1,6 +1,6 @@
 import pytest
 
-from clickforge_core import blend, fit_scale, format_combo, mouse_name, vk_name
+from clickforge_core import blend, display_combo, fit_scale, format_combo, mouse_name, vk_name
 
 
 class TestMouseName:
@@ -28,6 +28,16 @@ def test_format_combo_puts_modifiers_first():
     assert format_combo(["g", "shift", "ctrl"]) == "CTRL + SHIFT + G"
     assert format_combo(["mouse4"]) == "MOUSE 4"
     assert format_combo(["ctrl", "mouse_left"]) == "CTRL + MOUSE LEFT"
+
+
+def test_display_combo_uses_key_cap_case():
+    assert display_combo(["g", "shift", "ctrl"]) == "Ctrl + Shift + G"
+    assert display_combo(["mouse4"]) == "Mouse 4"
+    assert display_combo(["f6"]) == "F6"
+    assert display_combo(["page_up"]) == "Page Up"
+    assert display_combo(["num5"]) == "Num5"
+    assert display_combo(["vk255"]) == "VK255"
+    assert display_combo(["ctrl", "vk187"]) == "Ctrl + ="
 
 
 def test_blend():

@@ -5,6 +5,7 @@ import json
 import math
 import os
 import queue
+import re
 import shutil
 import threading
 import time
@@ -187,6 +188,17 @@ def format_combo(combo):
     mods = [m for m in MOD_ORDER if m in combo]
     rest = [k for k in combo if k not in MOD_ORDER]
     return " + ".join(key_label(k) for k in mods + rest)
+
+
+def _key_word(word):
+    if re.fullmatch(r"VK\d+", word):  # a raw key code reads better as it is
+        return word
+    return re.sub(r"[A-Z]{2,}", lambda m: m.group().capitalize(), word)
+
+
+def display_combo(combo):
+    """format_combo as the window shows it: CTRL + PAGE UP becomes Ctrl + Page Up, F6 stays F6."""
+    return " ".join(_key_word(w) for w in format_combo(combo).split(" "))
 
 
 def fit_scale(needed, available, smallest=MIN_UI_SCALE):

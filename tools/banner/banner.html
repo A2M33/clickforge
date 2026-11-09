@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ClickForge banner</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="banner.css">
+<script src="trace.js"></script>
+<style>
+  /* the real window in dark mode (tools/shoot_app.py), 482x809, scaled to 512px tall */
+  .window { position: absolute; left: 860px; top: 64px; height: 512px; display: block; }
+</style>
+</head>
+<body>
+<main class="sheet">
+  <section class="intro">
+    <img class="icon" src="../../streamdeck/com.a2m33.clickforge.sdPlugin/imgs/plugin@2x.png" alt="">
+    <h1>ClickForge</h1>
+    <p class="sub">Turns one mouse click into many on Windows, with a Stream Deck plugin.</p>
+    <p class="meta"><span class="pad" data-state="live"></span>Python · customtkinter · Node.js</p>
+  </section>
+
+  <img class="window" src="../../docs/app-dark.png" alt="">
+
+  <p class="callout lit" id="c-on" style="left:590px;top:146px;width:200px"><b>On at ×12</b>Each real click sends 12</p>
+  <p class="callout" id="c-key" style="left:590px;top:487px;width:200px"><b>Mouse 4</b>Toggle with a key, a mouse button or the Stream Deck</p>
+</main>
+<script>
+  const k = 512 / 809, win = (x, y) => [860 + x * k, 64 + y * k];
+  const right = id => { const r = document.getElementById(id).getBoundingClientRect(); return [r.right + 10, r.top + 11]; };
+  traces([
+    [right("c-on"), win(43, 146), { lit: true, r: 0, tail: 0 }],
+    [right("c-key"), win(45, 686), { r: 4 }],
+  ]);
+</script>
+</body>
+</html>

@@ -38,15 +38,17 @@ user32.GetAncestor.restype = wintypes.HWND
 
 ASSETS = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "assets")
 
-# A2M33 "control room" palette, (light, dark); CTk picks the one matching the system theme.
-# Grey is normal, amber means the multiplier is live. Nothing else gets colour.
-CAB = ("#e3e5e0", "#1b211e")
-PANEL = ("#f4f5f2", "#242b27")
-INSET = ("#d5d9d3", "#2f3732")
-LINE = ("#b9bfb7", "#3d4741")
-INK = ("#1d2420", "#e2e6e0")
-INK_2 = ("#56605a", "#9aa59d")
-AMBER = ("#d99211", "#f0ab2a")
+# A2M33 "trace" palette, (light, dark); CTk picks the one matching the system theme.
+# Navy and grey are normal, cyan means the multiplier is live. Nothing else gets the signal colour.
+GROUND = ("#f2f5fa", "#0b1222")
+PANEL = ("#ffffff", "#111a2d")
+INSET = ("#e4eaf3", "#18233a")
+LINE = ("#cdd6e4", "#22304b")
+TRACE = ("#9fb0c9", "#3a4d70")
+INK = ("#0c1628", "#e6edf7")
+INK_2 = ("#4a5a73", "#93a3bd")
+SIGNAL = ("#0788ad", "#2fcbea")
+LINK = ("#1f5bd8", "#6f9dff")
 
 
 def mix(a, b, t):
@@ -57,12 +59,10 @@ def mix(a, b, t):
 INSET_HOVER = mix(INSET, LINE, 0.45)
 INK_HOVER = mix(INK, INK_2, 0.35)
 
-# Barlow is bundled in assets/fonts and loaded privately at start (see load_fonts).
-BODY = "Barlow"
-MEDIUM = "Barlow Medium"
-SEMIBOLD = "Barlow SemiBold"
-TAG = "Barlow Semi Condensed Medium"
-TAG_BOLD = "Barlow Semi Condensed SemiBold"
+# Archivo is bundled in assets/fonts and loaded privately at start (see load_fonts).
+BODY = "Archivo"
+MEDIUM = "Archivo Medium"
+SEMIBOLD = "Archivo SemiBold"
 
 
 def load_fonts():
@@ -188,15 +188,15 @@ class HotkeyManager(HotkeyState):
         self._listener.stop()
 
 
-class Lamp(ctk.CTkFrame):
-    """The status lamp: a round light, grey when off and amber while the multiplier is live."""
+class StatusPad(ctk.CTkFrame):
+    """The status pad: a hollow grey ring when off, filled cyan while the multiplier is live."""
 
     def __init__(self, master, size=18, **kw):
         super().__init__(master, width=size, height=size, corner_radius=size // 2,
-                         border_width=1, **kw)
+                         border_width=2, **kw)
 
     def show(self, live):
-        self.configure(fg_color=AMBER if live else INSET, border_color=AMBER if live else LINE)
+        self.configure(fg_color=SIGNAL if live else PANEL, border_color=SIGNAL if live else TRACE)
 
 
 def rule(master):
@@ -206,7 +206,7 @@ def rule(master):
 
 
 def section_label(master, text):
-    return ctk.CTkLabel(master, text=text, text_color=INK_2, font=(TAG, 15), height=20)
+    return ctk.CTkLabel(master, text=text, text_color=INK_2, font=(MEDIUM, 14), height=20)
 
 
 class Segmented(ctk.CTkFrame):
@@ -247,7 +247,7 @@ class App(ctk.CTk):
         self.cfg = load_config()
         self.title(APP_NAME)
         self.resizable(False, False)
-        self.configure(fg_color=CAB)
+        self.configure(fg_color=GROUND)
         self.iconbitmap(os.path.join(ASSETS, "clickforge.ico"))
 
         self.ui_queue = queue.Queue()  # listener threads hand work to the Tk thread through this
@@ -303,25 +303,25 @@ class App(ctk.CTk):
     def _build(self):
         pad = {"padx": 24}
 
-        ctk.CTkLabel(self, text=APP_NAME, text_color=INK, font=(TAG_BOLD, 25), height=32
+        ctk.CTkLabel(self, text=APP_NAME, text_color=INK, font=(SEMIBOLD, 24), height=32
                      ).pack(anchor="w", pady=(18, 12), **pad)
 
-        # On/off: the lamp shows the state, the button switches it.
-        status = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=6, border_width=1, border_color=LINE)
+        # On/off: the pad shows the state, the button switches it.
+        status = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=8, border_width=1, border_color=LINE)
         status.pack(fill="x", **pad)
         status.grid_columnconfigure(1, weight=1)
-        self.lamp = Lamp(status, size=22)
-        self.lamp.grid(row=0, column=0, rowspan=2, padx=(20, 14))
+        self.status_pad = StatusPad(status, size=22)
+        self.status_pad.grid(row=0, column=0, rowspan=2, padx=(20, 14))
         self.state_label = ctk.CTkLabel(status, text="", text_color=INK, font=(SEMIBOLD, 31), height=36,
                                         anchor="w")
         self.state_label.grid(row=0, column=1, sticky="sw", pady=(16, 0))
         self.hint = ctk.CTkLabel(status, text="", text_color=INK_2, font=(BODY, 15), height=20, anchor="w")
         self.hint.grid(row=1, column=1, sticky="nw", pady=(0, 16))
-        self.power = ctk.CTkButton(status, text="", width=120, height=44, corner_radius=3, border_width=1,
+        self.power = ctk.CTkButton(status, text="", width=120, height=44, corner_radius=4, border_width=1,
                                    font=(MEDIUM, 17), command=self.toggle)
         self.power.grid(row=0, column=2, rowspan=2, padx=(12, 20))
 
-        panel = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=6, border_width=1, border_color=LINE)
+        panel = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=8, border_width=1, border_color=LINE)
         panel.pack(fill="x", pady=(12, 0), **pad)
         panel.grid_columnconfigure(0, weight=1)
         inner = {"padx": 20, "sticky": "ew"}
@@ -334,7 +334,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(row, text="clicks per click", text_color=INK_2, font=(BODY, 15), height=20
                      ).pack(side="left", padx=(10, 0), pady=(12, 0))
         for text, step in (("+", 1), ("−", -1)):
-            ctk.CTkButton(row, text=text, width=36, height=36, corner_radius=3, border_width=1,
+            ctk.CTkButton(row, text=text, width=36, height=36, corner_radius=4, border_width=1,
                           fg_color=PANEL, border_color=LINE, hover_color=INSET, text_color=INK,
                           font=(MEDIUM, 22),
                           command=lambda s=step: self._set_multiplier(self.engine.multiplier + s)
@@ -374,13 +374,13 @@ class App(ctk.CTk):
         section_label(panel, "Shortcut").grid(row=12, column=0, padx=20, pady=(14, 6), sticky="w")
         row = ctk.CTkFrame(panel, fg_color="transparent")
         row.grid(row=13, column=0, pady=(0, 18), **inner)
-        self.key_box = ctk.CTkFrame(row, height=40, corner_radius=3, fg_color=INSET, border_width=1,
+        self.key_box = ctk.CTkFrame(row, height=40, corner_radius=4, fg_color=INSET, border_width=1,
                                     border_color=INSET)
         self.key_box.pack(side="left", fill="x", expand=True)
         self.key_box.pack_propagate(False)
         self.key_text = ctk.CTkLabel(self.key_box, text="", text_color=INK, font=(MEDIUM, 16), height=20)
         self.key_text.place(relx=0.5, rely=0.5, anchor="center")
-        self.rebind_btn = ctk.CTkButton(row, text="Change", width=120, height=40, corner_radius=3,
+        self.rebind_btn = ctk.CTkButton(row, text="Change", width=120, height=40, corner_radius=4,
                                         border_width=1, fg_color=PANEL, border_color=LINE, hover_color=INSET,
                                         text_color=INK, font=(MEDIUM, 15), command=self._start_rebind)
         self.rebind_btn.pack(side="right", padx=(10, 0))
@@ -429,12 +429,12 @@ class App(ctk.CTk):
 
     def _refresh_power(self):
         on = self.engine.enabled
-        self.lamp.show(on)
+        self.status_pad.show(on)
         self.state_label.configure(text="On" if on else "Off")
-        if on:  # the lamp is the one amber thing; the button steps back
+        if on:  # the pad is the one cyan thing; the button steps back
             self.power.configure(text="Turn off", fg_color=PANEL, hover_color=INSET, border_color=LINE,
                                  text_color=INK)
-        else:  # primary action: ink, not amber
+        else:  # primary action: ink, not cyan
             self.power.configure(text="Turn on", fg_color=INK, hover_color=INK_HOVER, border_color=INK,
                                  text_color=PANEL)
 
@@ -483,7 +483,7 @@ class App(ctk.CTk):
     def _start_rebind(self):
         self.hotkeys.capturing = True
         self.key_text.configure(text="Press a key or mouse button")
-        self.key_box.configure(border_color=AMBER)  # waiting for input needs attention
+        self.key_box.configure(border_color=LINK)  # focus colour: the box is waiting for input
         self.rebind_btn.configure(text="Esc to cancel")
 
     def _on_captured(self, combo):

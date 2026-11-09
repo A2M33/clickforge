@@ -16,7 +16,9 @@ PLUGIN = HERE / "com.a2m33.clickforge.sdPlugin"
 IMGS = PLUGIN / "imgs"
 DOCS = HERE.parent / "docs"
 
-TILE, EDGE, INK, AMBER = "#242b27", "#3d4741", "#e2e6e0", "#f0ab2a"
+# A2M33 "trace" dark tokens: navy tile, light glyph, one cyan pad wired to the tile edge.
+TILE, EDGE, INK, SIGNAL = "#111a2d", "#22304b", "#e6edf7", "#2fcbea"
+GROUND = "#0b1222"  # the board behind the keys in the README strip
 STROKE = f'fill="none" stroke="{INK}" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"'
 CURSOR = (f'<path d="M168 150 L 168 370 L 222 318 L 262 400 L 300 382 L 260 302 L 334 298 Z" {STROKE}/>'
           f'<path d="M150 112 L 128 90 M 196 104 V 74 M 112 158 H 82" {STROKE}/>')
@@ -29,7 +31,8 @@ def svg(view_box, body):
 # The plugin icon is the full app icon; list icons are the bare glyph, light on transparent.
 TILE_ICON = svg("0 0 512 512", f'<rect x="8" y="8" width="496" height="496" rx="112" fill="{TILE}" '
                                f'stroke="{EDGE}" stroke-width="8"/>{CURSOR}'
-                               f'<circle cx="400" cy="112" r="34" fill="{AMBER}"/>')
+                               f'<path d="M390 122 H 500" stroke="{SIGNAL}" stroke-width="16" fill="none"/>'
+                               f'<circle cx="390" cy="122" r="28" fill="{TILE}" stroke="{SIGNAL}" stroke-width="16"/>')
 GLYPH_BOX = "38 66 340 340"
 ICONS = {  # name: (svg, size at 1x)
     "plugin": (TILE_ICON, 256),
@@ -81,8 +84,8 @@ def main():
         # README strip: the live keys as Stream Deck draws them, framed like the other A2M33 images.
         cells = "".join(f'<div style="width:144px;height:144px;border-radius:18px;overflow:hidden">{k}</div>'
                         for k in keys["docs"])
-        strip = (f'<div style="display:inline-flex;gap:16px;padding:24px;background:{TILE};'
-                 f'border:1px solid {EDGE};border-radius:6px">{cells}</div>')
+        strip = (f'<div style="display:inline-flex;gap:16px;padding:24px;background:{GROUND};'
+                 f'border:1px solid {EDGE};border-radius:8px">{cells}</div>')
         shoot(page, strip, DOCS / "streamdeck.png", None)
         browser.close()
     print("icons written to", IMGS, "and", DOCS / "streamdeck.png")

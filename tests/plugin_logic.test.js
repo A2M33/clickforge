@@ -99,12 +99,14 @@ test("repeated failures report the app as gone", async () => {
 });
 
 const { keySvg } = require("../streamdeck/com.a2m33.clickforge.sdPlugin/bin/keys");
-const lampFill = (svg) => svg.match(/<circle [^>]*fill="(#[0-9a-f]{6})"/)[1];
+const padFill = (svg) => svg.match(/<circle [^>]*fill="(#[0-9a-f]{6})"/)[1];
 
-test("the toggle key's lamp is amber when on, grey when off, red when the app is closed", () => {
-  assert.strictEqual(lampFill(keySvg("toggle", { enabled: true, multiplier: 12 })), "#f0ab2a");
-  assert.strictEqual(lampFill(keySvg("toggle", { enabled: false, multiplier: 12 })), "#2f3732");
-  assert.strictEqual(lampFill(keySvg("toggle", null)), "#e2584d");
+test("the toggle key's pad is cyan when on, a grey ring when off, red when the app is closed", () => {
+  assert.strictEqual(padFill(keySvg("toggle", { enabled: true, multiplier: 12 })), "#2fcbea");
+  const off = keySvg("toggle", { enabled: false, multiplier: 12 });
+  assert.strictEqual(padFill(off), "#111a2d");
+  assert.match(off, /<circle [^>]*stroke="#3a4d70"/);
+  assert.strictEqual(padFill(keySvg("toggle", null)), "#ff6b6b");
 });
 
 test("plus and minus keys show the multiplier, and nothing while the app is closed", () => {
